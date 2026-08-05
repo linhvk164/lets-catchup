@@ -1,37 +1,39 @@
-import Link from "next/link";
 import { LandingHeroPostcard } from "@/components/LandingHeroPostcard";
+import { TransitionLink } from "@/components/TransitionLink";
 
 export default function HomePage() {
   return (
     <div className="flex min-h-full flex-col">
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 pb-16 pt-14 sm:px-8 sm:pt-20">
-        <section className="animate-fade-rise flex flex-1 flex-col items-center text-center">
-          <p className="font-display text-4xl leading-[1.1] tracking-tight text-ink sm:text-5xl md:text-[3.4rem]">
-            One Postcard Away
-          </p>
-
-          <h1 className="mt-5 max-w-xl text-lg leading-relaxed text-ink-soft sm:text-xl">
-            Find a moment to catch up, no matter where you are.
-          </h1>
-
-          <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-soft/85 sm:text-base">
-            One Postcard Away helps friends across time zones find a time that
-            works for everyone.
-          </p>
-
-          <div className="mt-8 w-full max-w-sm">
-            <Link
-              href="/create"
-              className="inline-flex w-full items-center justify-center rounded-xl bg-ocean-deep px-5 py-3.5 text-sm font-medium text-paper shadow-[0_12px_28px_rgba(31,79,92,0.28)] transition hover:bg-ocean active:scale-[0.98]"
-            >
-              Create a postcard
-            </Link>
-          </div>
-
-          <div className="mt-12 w-full sm:mt-14">
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-5 pb-16 pt-10 sm:px-8 sm:pt-14">
+        <div className="grid flex-1 items-center gap-10 lg:grid-cols-2 lg:gap-14">
+          <div className="order-2 flex justify-center lg:order-1 lg:justify-center lg:px-4">
             <LandingHeroPostcard />
           </div>
-        </section>
+
+          <section className="animate-fade-rise order-1 flex w-full max-w-xl flex-col items-start text-left lg:order-2 lg:max-w-none">
+            <h1 className="font-display text-4xl leading-[1.1] tracking-tight text-ink sm:text-5xl md:text-[3.4rem]">
+              Let&apos;s Catch-up
+            </h1>
+
+            <p className="mt-3 text-lg leading-snug text-ink-soft sm:text-xl">
+              Send a postcard invite.
+            </p>
+
+            <p className="mt-1.5 max-w-md text-sm leading-snug text-ink-soft/85 sm:text-base">
+              Allows friends across time zones find a time that works for
+              everyone.
+            </p>
+
+            <div className="mt-7 w-full max-w-sm">
+              <TransitionLink
+                href="/create"
+                className="inline-flex w-full items-center justify-center rounded-xl bg-ocean-deep px-5 py-3.5 text-sm font-medium text-paper transition hover:bg-ocean active:scale-[0.98]"
+              >
+                Create a postcard invite
+              </TransitionLink>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
   );

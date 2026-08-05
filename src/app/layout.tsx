@@ -1,5 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { Fraunces, Outfit } from "next/font/google";
+import {
+  Birthstone_Bounce,
+  Butterfly_Kids,
+  Fraunces,
+  Outfit,
+  Schoolbell,
+  Sedgwick_Ave,
+  Sue_Ellen_Francisco,
+} from "next/font/google";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -14,14 +22,49 @@ const outfit = Outfit({
   display: "swap",
 });
 
+const schoolbell = Schoolbell({
+  variable: "--font-schoolbell",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const sedgwickAve = Sedgwick_Ave({
+  variable: "--font-sedgwick-ave",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const sueEllenFrancisco = Sue_Ellen_Francisco({
+  variable: "--font-sue-ellen-francisco",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const birthstoneBounce = Birthstone_Bounce({
+  variable: "--font-birthstone-bounce",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const butterflyKids = Butterfly_Kids({
+  variable: "--font-butterfly-kids",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "One Postcard Away",
+  title: "Let's Catchup",
   description:
-    "Find a moment to catch up, no matter where you are. Send a thoughtful invitation across distance.",
+    "Send a postcard invite. Find a moment to catch up, no matter where you are.",
   openGraph: {
-    title: "One Postcard Away",
+    title: "Let's Catchup",
     description:
-      "Help friends across time zones find a time that works, then seal it with a postcard.",
+      "Send a postcard invite and find a time that works across time zones.",
     type: "website",
   },
 };
@@ -32,9 +75,19 @@ export const viewport: Viewport = {
   themeColor: "#c9dde8",
 };
 
+const fontVariables = [
+  fraunces.variable,
+  outfit.variable,
+  schoolbell.variable,
+  sedgwickAve.variable,
+  sueEllenFrancisco.variable,
+  birthstoneBounce.variable,
+  butterflyKids.variable,
+].join(" ");
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${outfit.variable} h-full`}>
+    <html lang="en" className={`${fontVariables} h-full`}>
       <body className="min-h-full antialiased">{children}</body>
     </html>
   );

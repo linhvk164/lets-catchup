@@ -10,7 +10,7 @@ export function HeroPostcard() {
           <div className="absolute inset-0 flex flex-col justify-between p-4">
             <div className="flex justify-between">
               <p className="font-display text-[10px] uppercase tracking-[0.2em] text-white/75">
-                One Postcard Away
+                Let's Catchup
               </p>
               <div className="h-12 w-10 rotate-3 rounded-sm border border-dashed border-white/50 bg-white/15" />
             </div>
@@ -40,7 +40,7 @@ export function HeroPostcard() {
                 <span>Toronto 🇨🇦</span>
                 <span>Berlin 🇩🇪</span>
               </div>
-              <p className="mt-4 font-display text-xl text-white">One Postcard Away</p>
+              <p className="mt-4 font-display text-xl text-white">Let&apos;s Catchup</p>
               <p className="mt-1 text-[11px] text-white/75">Photography by Connie Kang</p>
             </div>
           </div>

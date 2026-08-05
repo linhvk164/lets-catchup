@@ -1,26 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ExceptionEditor } from "@/components/ExceptionEditor";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { Button, Field, TextArea } from "@/components/ui";
 import { parseAvailabilityInput } from "@/lib/availability";
 import { detectTimezone, getTimezoneInfo } from "@/lib/timezone";
-import type { ExceptionDate, Participant, TimezoneInfo } from "@/lib/types";
+import type { Participant, TimezoneInfo } from "@/lib/types";
 import { createParticipantId } from "@/hooks/useCatchUp";
 
 const EXAMPLES = [
-  "Anytime",
-  "Usually free evenings.",
-  "Weekends anytime.",
-  "Free after 6 PM on weekdays.",
+  "Evenings, not tomorrow",
+  "Weekends anytime",
+  "Weekdays after 6pm",
 ];
 
 export type ParticipantDraft = {
   name: string;
   timezone: TimezoneInfo;
   availability: string;
-  exceptions: ExceptionDate[];
 };
 
 export function participantToDraft(p: Participant): ParticipantDraft {
@@ -28,7 +25,6 @@ export function participantToDraft(p: Participant): ParticipantDraft {
     name: p.name,
     timezone: getTimezoneInfo(p.timezone),
     availability: p.availabilityText,
-    exceptions: p.exceptions,
   };
 }
 
@@ -49,7 +45,7 @@ export function draftToParticipant(
     rules: parsed.rules,
     preferences: parsed.preferences,
     flexibility: parsed.flexibility,
-    exceptions: draft.exceptions,
+    exceptions: parsed.exceptions,
     isCreator: opts?.isCreator,
   };
 }
@@ -74,10 +70,6 @@ export function ParticipantForm({
     initial?.timezone ?? { timezone: "UTC", cityLabel: "UTC" }
   );
   const [availability, setAvailability] = useState(initial?.availability ?? "");
-  const [exceptionInput, setExceptionInput] = useState("");
-  const [exceptions, setExceptions] = useState<ExceptionDate[]>(
-    initial?.exceptions ?? []
-  );
   const [submitted, setSubmitted] = useState(false);
   const [errors, setErrors] = useState<{
     name?: string;
@@ -113,7 +105,7 @@ export function ParticipantForm({
         e.preventDefault();
         setSubmitted(true);
         if (Object.keys(validate()).length > 0) return;
-        onSubmit({ name, timezone, availability, exceptions });
+        onSubmit({ name, timezone, availability });
       }}
     >
       <Field
@@ -135,9 +127,9 @@ export function ParticipantForm({
 
       <div className="space-y-2">
         <TextArea
-          label="Availability"
+          label="Tell us when you're usually free"
           name="participant-availability"
-          placeholder="What does your usual availability look like?"
+          placeholder="Weekdays after work, weekends anytime, except August 20."
           value={availability}
           onChange={(e) => setAvailability(e.target.value)}
           requiredMark
@@ -157,10 +149,13 @@ export function ParticipantForm({
         </div>
         {parsed && parsed.debugLines.length > 0 ? (
           <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5">
-            <p className="text-sm text-ink">{parsed.summary}</p>
-            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+            <p className="text-sm font-medium text-ink">{parsed.summary}</p>
+            <ul className="mt-1.5 space-y-1">
               {parsed.debugLines.map((line) => (
                 <li key={line} className="text-sm text-ink">
+                  <span className="text-ocean" aria-hidden>
+                    ✓{" "}
+                  </span>
                   {line}
                 </li>
               ))}
@@ -168,13 +163,6 @@ export function ParticipantForm({
           </div>
         ) : null}
       </div>
-
-      <ExceptionEditor
-        exceptions={exceptions}
-        onChange={setExceptions}
-        input={exceptionInput}
-        onInputChange={setExceptionInput}
-      />
 
       <div className="flex flex-col gap-2 sm:flex-row">
         <Button type="submit" className="flex-1">

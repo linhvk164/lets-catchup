@@ -37,6 +37,8 @@ export interface AvailabilityRule {
   start?: TimeOfDay;
   end?: TimeOfDay;
   days?: DayOfWeek[];
+  /** Display preference from the user's words, e.g. "After work". */
+  label?: string;
   raw: string;
 }
 
@@ -83,6 +85,10 @@ export interface Participant {
 export interface CatchUp {
   id: string;
   title: string;
+  /** Personal note on the postcard back */
+  message?: string;
+  /** Handwriting font for the postcard message */
+  messageFont?: string;
   duration: DurationMinutes;
   createdAt: string;
   participants: Participant[];
@@ -107,7 +113,6 @@ export interface MeetingSlot {
   score: number;
   label: string;
   localTimes: LocalTimeDisplay[];
-  worksWell: boolean;
 }
 
 export interface TimezoneInfo {

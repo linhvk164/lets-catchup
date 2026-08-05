@@ -8,21 +8,22 @@ import type { PostcardPhoto } from "./types";
  *
  * Then register them here with caption + credit metadata.
  * Preferred formats: .jpg / .webp, portrait-friendly ~3:4 or 4:5.
+ * Naming: lowercase kebab-case (e.g. spanish-beach.jpg).
  */
 export const DEFAULT_POSTCARD_PHOTOS: PostcardPhoto[] = [
   {
-    src: "/images/postcards/default-horizon.svg",
-    caption: "Across the Horizon",
+    src: "/images/postcards/spanish-beach.jpg",
+    caption: "Spanish Beach",
     credit: "Photography by Connie Kang",
   },
   {
-    src: "/images/postcards/default-harbour.svg",
-    caption: "Harbour Light",
+    src: "/images/postcards/coastal-road.jpg",
+    caption: "Coastal Road",
     credit: "Photography by Connie Kang",
   },
   {
-    src: "/images/postcards/default-lantern.svg",
-    caption: "Evening Lanterns",
+    src: "/images/postcards/seagulls.jpg",
+    caption: "Seagulls",
     credit: "Photography by Connie Kang",
   },
 ];

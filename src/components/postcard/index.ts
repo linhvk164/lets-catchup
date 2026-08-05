@@ -5,6 +5,13 @@ export {
   PostcardFrontContent,
   PostcardBackContent,
   CitiesFront,
-  ParticipantNames,
 } from "./PostcardFaces";
+export {
+  StampArea,
+  PostcardDivider,
+  RecipientList,
+  MessageArea,
+  EditableTitle,
+} from "./PostcardAnatomy";
 export { FlippablePostcard } from "./FlippablePostcard";
+export { InteractivePostcard } from "./InteractivePostcard";

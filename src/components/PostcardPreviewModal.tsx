@@ -17,6 +17,9 @@ export function PostcardPreviewModal({
   onCopyLink,
   onShare,
   onJoin,
+  onEdit,
+  onUpdateTitle,
+  onUpdateMessage,
   copied,
 }: {
   open: boolean;
@@ -32,28 +35,22 @@ export function PostcardPreviewModal({
   onCopyLink?: () => void;
   onShare?: () => void;
   onJoin?: () => void;
+  onEdit?: () => void;
+  onUpdateTitle?: (title: string) => void;
+  onUpdateMessage?: (message: string) => void;
   copied?: boolean;
 }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 pt-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-5">
       <button
         type="button"
         className="absolute inset-0 cursor-default"
         aria-label="Close preview"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-md rounded-t-2xl bg-white px-4 pb-6 pt-3 sm:rounded-none sm:bg-transparent sm:p-0">
-        <div className="mb-2 flex justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full bg-white/90 px-3 py-1.5 text-sm text-ink shadow sm:bg-white"
-          >
-            Close
-          </button>
-        </div>
+      <div className="relative z-10 w-full max-w-[20rem] sm:max-w-[22rem]">
         <FlippablePostcard
           catchUp={catchUp}
           bestSlot={bestSlot}
@@ -67,6 +64,9 @@ export function PostcardPreviewModal({
           onCopyLink={onCopyLink}
           onShare={onShare}
           onJoin={onJoin}
+          onEdit={onEdit}
+          onUpdateTitle={onUpdateTitle}
+          onUpdateMessage={onUpdateMessage}
           copied={copied}
           fitViewport
         />

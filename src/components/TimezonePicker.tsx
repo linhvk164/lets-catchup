@@ -72,13 +72,16 @@ export function TimezonePicker({
           error ? "border-stamp/60" : "border-ink/10"
         }`}
       >
-        <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">Detected</p>
-        <p className="mt-1 text-base font-medium text-ink">{display.primary}</p>
-        <p className="mt-0.5 text-xs text-ink-soft">
-          {display.secondary}
-          <span className="mx-1.5 text-ink/20">·</span>
-          {display.tertiary}
-        </p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="min-w-0 text-base font-medium text-ink">
+            {display.primary}
+          </p>
+          <p className="shrink-0 text-right text-xs text-ink-soft">
+            {display.secondary}
+            <span className="mx-1.5 text-ink/20">·</span>
+            {display.tertiary}
+          </p>
+        </div>
       </div>
 
       {editing && (
@@ -116,8 +119,11 @@ export function TimezonePicker({
                         }}
                       >
                         <span className="text-sm font-medium text-ink">{row.primary}</span>
-                        <span className="text-xs text-ink-soft">{row.secondary}</span>
-                        <span className="text-[11px] text-ink-soft/70">{row.tertiary}</span>
+                        <span className="text-xs text-ink-soft">
+                          {row.secondary}
+                          <span className="mx-1.5 text-ink/20">·</span>
+                          {row.tertiary}
+                        </span>
                       </button>
                     </li>
                   );

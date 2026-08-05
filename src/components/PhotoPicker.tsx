@@ -27,9 +27,9 @@ export function PhotoPicker({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="max-w-[14rem] space-y-2">
       <p className="text-sm font-medium text-ink">Postcard photo</p>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-1.5">
         {DEFAULT_POSTCARD_PHOTOS.map((photo) => {
           const active = !value.dataUrl && value.src === photo.src;
           return (
@@ -37,8 +37,10 @@ export function PhotoPicker({
               key={photo.src}
               type="button"
               onClick={() => onChange({ ...photo })}
-              className={`relative aspect-[3/4] overflow-hidden rounded-lg border-2 transition ${
-                active ? "border-ocean" : "border-transparent opacity-80 hover:opacity-100"
+              className={`relative aspect-[3/4] overflow-hidden rounded-md border-2 transition ${
+                active
+                  ? "border-ocean"
+                  : "border-transparent opacity-80 hover:opacity-100"
               }`}
             >
               <Image
@@ -46,15 +48,15 @@ export function PhotoPicker({
                 alt={photo.caption}
                 fill
                 className="object-cover"
-                sizes="120px"
+                sizes="72px"
                 unoptimized
               />
             </button>
           );
         })}
       </div>
-      <label className="flex cursor-pointer items-center justify-center rounded-xl border border-dashed border-ink/20 bg-white/40 px-4 py-3 text-sm text-ink-soft hover:bg-white/70">
-        Upload your own photo
+      <label className="flex cursor-pointer items-center justify-center rounded-lg border border-dashed border-ink/20 bg-white/40 px-2.5 py-2 text-xs text-ink-soft hover:bg-white/70">
+        Upload your own
         <input
           type="file"
           accept="image/*"
@@ -63,8 +65,9 @@ export function PhotoPicker({
         />
       </label>
       {value.dataUrl ? (
-        <p className="text-xs text-ink-soft">
-          Custom photo saved on this device. Shared links use the selected default for friends.
+        <p className="text-[11px] text-ink-soft">
+          Custom photo saved on this device. Shared links use the selected
+          default for friends.
         </p>
       ) : null}
     </div>

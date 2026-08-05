@@ -117,6 +117,22 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
     [catchUp, persist]
   );
 
+  const updateTitle = useCallback(
+    (title: string) => {
+      if (!catchUp) return;
+      persist({ ...catchUp, title });
+    },
+    [catchUp, persist]
+  );
+
+  const updateMessage = useCallback(
+    (message: string) => {
+      if (!catchUp) return;
+      persist({ ...catchUp, message });
+    },
+    [catchUp, persist]
+  );
+
   return {
     catchUp,
     loading,
@@ -130,6 +146,8 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
     updateParticipant,
     removeParticipant,
     selectSlot,
+    updateTitle,
+    updateMessage,
   };
 }
 

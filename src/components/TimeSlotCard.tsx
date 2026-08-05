@@ -8,10 +8,12 @@ export function TimeSlotCard({
   slot,
   onSelect,
   featured,
+  selected = false,
 }: {
   slot: MeetingSlot;
   onSelect?: () => void;
   featured?: boolean;
+  selected?: boolean;
 }) {
   const first = slot.localTimes[0];
   const dateLabel = DateTime.fromISO(slot.startUtc, { zone: "utc" })
@@ -21,21 +23,18 @@ export function TimeSlotCard({
   return (
     <div
       className={`rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_12px_32px_rgba(31,79,92,0.08)] ${
-        featured ? "ring-1 ring-ocean/30" : ""
+        selected
+          ? "ring-1 ring-ocean/50"
+          : featured
+            ? "ring-1 ring-ocean/30"
+            : ""
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-[0.16em] text-ocean">
-            {featured ? "Nearest available time" : "Also works"}
-          </p>
-          <h2 className="mt-1 font-display text-2xl text-ink">{dateLabel}</h2>
-        </div>
-        {slot.worksWell && (
-          <span className="inline-flex w-fit shrink-0 items-center justify-center self-start rounded-lg bg-ocean/10 px-2.5 py-1 text-center text-[11px] font-medium leading-snug text-ocean-deep">
-            Works well for everyone
-          </span>
-        )}
+      <div>
+        <p className="text-xs uppercase tracking-[0.16em] text-ocean">
+          {selected ? "Selected" : featured ? "Best time" : "Also works"}
+        </p>
+        <h2 className="mt-1 font-display text-2xl text-ink">{dateLabel}</h2>
       </div>
 
       <ul className="mt-4 space-y-2 border-t border-ink/8 pt-4">
@@ -63,21 +62,31 @@ export function TimeSlotCard({
           .map((group) => (
             <li
               key={`${group.hour}-${group.timeLabel}`}
-              className="flex min-w-0 items-baseline justify-between gap-2 text-sm leading-snug"
+              className="space-y-1 text-sm leading-snug"
             >
-              <span className="min-w-0 truncate text-ink-soft">
-                {group.places.map((p) => p.cityLabel).join(" · ")}
-              </span>
-              <span className="shrink-0 font-medium text-ink">
-                {group.timeLabel}
-              </span>
+              {group.places.map((p) => (
+                <div
+                  key={`${p.participantId}-${p.cityLabel}`}
+                  className="flex min-w-0 items-baseline justify-between gap-2"
+                >
+                  <span className="min-w-0 truncate font-medium text-ink">
+                    {p.cityLabel}
+                    {p.flagEmoji ? ` ${p.flagEmoji}` : ""}
+                  </span>
+                  <span className="shrink-0 text-ink-soft">{group.timeLabel}</span>
+                </div>
+              ))}
             </li>
           ))}
       </ul>
 
       {onSelect ? (
-        <Button className="mt-5 w-full" onClick={onSelect}>
-          Select this time
+        <Button
+          className="mt-5 w-full"
+          onClick={onSelect}
+          disabled={selected}
+        >
+          {selected ? "Time selected" : "Select this time"}
         </Button>
       ) : null}
     </div>

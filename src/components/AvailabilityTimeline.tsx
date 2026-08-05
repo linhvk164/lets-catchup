@@ -120,7 +120,7 @@ export function AvailabilityTimeline({
                 <li key={participant.id} className="flex items-center gap-0">
                   <div className="sticky left-0 z-20 w-36 shrink-0 bg-white pr-2 sm:w-40">
                     <p className="truncate text-sm font-medium text-ink">
-                      {participant.name} {participant.flagEmoji ?? ""}
+                      {participant.name}
                     </p>
                     <p className="truncate text-[11px] text-ink-soft">
                       {participant.cityLabel}
@@ -234,7 +234,7 @@ export function AvailabilityTimelineSheet({
       />
       <div className="relative z-10 w-full max-w-3xl rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-6">
         <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-          <h2 className="font-display text-2xl text-ink">View availability</h2>
+          <h2 className="font-display text-2xl text-ink">See everyone&apos;s schedule</h2>
           <button
             type="button"
             className="text-ink-soft hover:text-ink"

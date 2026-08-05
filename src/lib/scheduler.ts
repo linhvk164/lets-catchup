@@ -268,13 +268,6 @@ function scoreSlot(startUtc: DateTime, participants: Participant[]): number {
   return score;
 }
 
-function worksWell(startUtc: DateTime, participants: Participant[]): boolean {
-  return participants.every((p) => {
-    const hour = localHour(startUtc.toISO()!, p.timezone);
-    return hour >= 8 && hour < 22;
-  });
-}
-
 function isTooHarshForParticipant(participant: Participant, startIso: string): boolean {
   const hour = localHour(startIso, participant.timezone);
   // Fully flexible people can meet any hour; others avoid deep night
@@ -355,7 +348,6 @@ export function findMeetingSlots(
             timeLabel: formatLocalTime(startIso, p.timezone),
             hour: localHour(startIso, p.timezone),
           })),
-          worksWell: worksWell(cursor, participants),
         });
       }
 
@@ -364,7 +356,7 @@ export function findMeetingSlots(
   }
 
   const labels = [
-    "Nearest available time",
+    "Best time",
     "Also works",
     "Another option",
     "One more",
@@ -422,7 +414,6 @@ export function getSelectedSlot(
           timeLabel: formatLocalTime(startIso, p.timezone),
           hour: localHour(startIso, p.timezone),
         })),
-        worksWell: true,
       };
     }
   }

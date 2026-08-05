@@ -1,293 +1,192 @@
 "use client";
 
+import Image from "next/image";
 import { DateTime } from "luxon";
-import type { CatchUp, LocalTimeDisplay, MeetingSlot, Participant } from "@/lib/types";
+import type {
+  CatchUp,
+  MeetingSlot,
+  Participant,
+  PostcardPhoto,
+} from "@/lib/types";
+import { resolvePhotoSrc } from "@/lib/photos";
+import { messageFontFamily } from "@/lib/message-fonts";
+import { resolvePostcardMessage } from "@/lib/postcard-copy";
 import {
-  getPostcardMapLayout,
-  travelCurve,
-} from "@/lib/postcard-map";
+  EditableTitle,
+  MessageArea,
+  PostcardDivider,
+  StampArea,
+} from "./PostcardAnatomy";
 
-/** Front visual: cities on a designed postcard map with travel-route threads. */
-export function CitiesFront({ participants }: { participants: Participant[] }) {
-  const source =
-    participants.length > 0
-      ? participants
-      : ([
-          {
-            id: "placeholder-a",
-            cityLabel: "Toronto",
-            flagEmoji: "🇨🇦",
-          },
-          {
-            id: "placeholder-b",
-            cityLabel: "Berlin",
-            flagEmoji: "🇩🇪",
-          },
-        ] as Participant[]);
-
-  const { positions, threads, compact, shownCount } = getPostcardMapLayout(
-    source.length
-  );
-  const shown = source.slice(0, shownCount);
-
-  const pathD = threads
-    .map(([from, to]) => {
-      const a = positions[from];
-      const b = positions[to];
-      if (!a || !b) return "";
-      return travelCurve(a, b);
-    })
-    .filter(Boolean)
-    .join(" ");
-
-  const dotOuter = compact ? "h-3 w-3" : "h-3.5 w-3.5";
-  const dotInner = compact ? "h-1.5 w-1.5" : "h-2 w-2";
-  const labelClass = compact
-    ? "mt-2 max-w-[5.25rem] text-[10px]"
-    : "mt-2.5 max-w-[6.5rem] text-[11px]";
+/** Front visual: full-bleed postcard photo with credit eyebrow. */
+export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
+  const photoSrc = resolvePhotoSrc(photo);
 
   return (
-    <div className="relative h-full w-full overflow-hidden rounded-lg bg-[radial-gradient(circle_at_18%_22%,#d7e8f0,transparent_42%),radial-gradient(circle_at_82%_28%,#e8dcc8,transparent_40%),linear-gradient(165deg,#8fb6c9_0%,#2f6f7e_52%,#1e3340_100%)]">
-      <svg
-        className="absolute inset-0 h-full w-full"
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        aria-hidden
-      >
-        {pathD ? (
-          <path
-            d={pathD}
-            fill="none"
-            stroke="rgba(255,255,255,0.72)"
-            strokeWidth="1.15"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeDasharray="2.4 2.8"
-            vectorEffect="non-scaling-stroke"
-            className="animate-thread"
-          />
-        ) : null}
-      </svg>
+    <div className="postcard-layer-paper relative h-full w-full overflow-hidden bg-[radial-gradient(circle_at_18%_22%,#d7e8f0,transparent_42%),radial-gradient(circle_at_82%_28%,#e8dcc8,transparent_40%),linear-gradient(165deg,#8fb6c9_0%,#2f6f7e_52%,#1e3340_100%)]">
+      <Image
+        src={photoSrc}
+        alt={photo?.caption ?? "Postcard scene"}
+        fill
+        className="postcard-layer-photo object-cover"
+        sizes="(max-width: 768px) 92vw, 576px"
+        unoptimized
+        priority={false}
+      />
 
-      {shown.map((p, i) => {
-        const pos = positions[i];
-        if (!pos) return null;
-        return (
-          <div
-            key={p.id}
-            className="animate-pin pointer-events-none absolute"
-            style={{
-              left: `${pos.x}%`,
-              top: `${pos.y}%`,
-              animationDelay: `${0.12 + i * 0.08}s`,
-            }}
-          >
-            <span
-              className={`absolute left-0 top-0 flex ${dotOuter} -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white shadow-sm`}
-            >
-              <span className={`${dotInner} rounded-full bg-stamp`} />
-            </span>
-            <p
-              className={`absolute left-0 top-0 -translate-x-1/2 truncate text-center font-medium leading-tight text-white/95 drop-shadow-sm ${labelClass}`}
-            >
-              {p.cityLabel}
-            </p>
-          </div>
-        );
-      })}
+      {photo?.credit ? (
+        <div className="postcard-layer-credit absolute inset-x-3 top-3 flex items-center gap-3 sm:inset-x-4 sm:top-4">
+          <p className="shrink-0 text-[10px] tracking-[0.06em] text-white/90">
+            {photo.credit}
+          </p>
+          <div className="h-px min-w-0 flex-1 bg-white/40" aria-hidden />
+        </div>
+      ) : null}
     </div>
   );
 }
 
-export function ParticipantNames({
-  participants,
-  onEdit,
-  onViewAvailability,
-}: {
-  participants: Participant[];
-  onEdit?: (participant: Participant) => void;
-  onViewAvailability?: () => void;
-}) {
-  return (
-    <div className="space-y-2.5 text-left">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">
-          Who&apos;s joining
-        </p>
-        {onViewAvailability && participants.length > 0 ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onViewAvailability();
-            }}
-            className="text-[11px] text-ocean hover:underline"
-          >
-            View availability
-          </button>
-        ) : null}
-      </div>
-      {participants.length === 0 ? (
-        <p className="text-sm text-ink-soft">Your invitation starts here</p>
-      ) : (
-        <>
-          <ul className="flex flex-wrap justify-start gap-2">
-            {participants.map((p) => (
-              <li key={p.id}>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEdit?.(p);
-                  }}
-                  className="rounded-full border border-ink/10 bg-white px-3 py-1 text-sm text-ink transition hover:border-ocean/40"
-                  title={onEdit ? "Edit" : undefined}
-                >
-                  {p.name} {p.flagEmoji ?? ""}
-                </button>
-              </li>
-            ))}
-          </ul>
-          {onEdit ? (
-            <p className="text-[10px] text-ink-soft/70">click on name to edit</p>
-          ) : null}
-        </>
-      )}
-    </div>
-  );
-}
-
-function groupLocalTimesByClock(
-  localTimes: LocalTimeDisplay[]
-): { timeLabel: string; hour: number; places: LocalTimeDisplay[] }[] {
-  const sorted = [...localTimes].sort((a, b) => {
-    const byHour = a.hour - b.hour;
-    if (byHour !== 0) return byHour;
-    return a.cityLabel.localeCompare(b.cityLabel);
-  });
-
-  const groups: { timeLabel: string; hour: number; places: LocalTimeDisplay[] }[] =
-    [];
-  for (const lt of sorted) {
-    const last = groups[groups.length - 1];
-    if (last && last.timeLabel === lt.timeLabel && last.hour === lt.hour) {
-      last.places.push(lt);
-    } else {
-      groups.push({
-        timeLabel: lt.timeLabel,
-        hour: lt.hour,
-        places: [lt],
-      });
-    }
-  }
-  return groups;
-}
-
-function BestTimeBlock({
+function AvailabilitySection({
   catchUp,
   bestSlot,
-  isConfirmed,
   moreCount,
   onViewMore,
+  onViewAvailability,
 }: {
   catchUp: CatchUp;
   bestSlot: MeetingSlot | null;
-  isConfirmed: boolean;
   moreCount: number;
   onViewMore?: () => void;
+  onViewAvailability?: () => void;
 }) {
-  if (catchUp.participants.length < 2) {
-    return (
-      <div className="space-y-2.5 text-left">
-        <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">
-          Nearest available time
-        </p>
-        <p className="text-sm leading-relaxed text-ink-soft">
-          Waiting for friends to join…
-        </p>
-        <p className="text-xs leading-relaxed text-ink-soft/80">
-          Share this postcard with friends to find a time together.
-        </p>
-      </div>
-    );
-  }
+  const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
+  const hasFriends = catchUp.participants.length >= 2;
+  const hasBestTime = hasFriends && Boolean(bestSlot);
 
-  if (!bestSlot) {
-    return (
-      <div className="space-y-2.5 text-left">
-        <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">
-          Nearest available time
-        </p>
-        <p className="text-sm leading-relaxed text-ink-soft">
-          We couldn&apos;t find a time that works yet. Try updating availability.
-        </p>
-      </div>
-    );
-  }
-
-  const first = bestSlot.localTimes[0];
-  const dateLabel = DateTime.fromISO(bestSlot.startUtc, { zone: "utc" })
-    .setZone(first?.timezone ?? "UTC")
-    .toFormat("ccc, LLL d");
-  const timeGroups = groupLocalTimesByClock(bestSlot.localTimes);
-
-  return (
-    <div className="space-y-2.5 text-left">
-      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-        <p className="text-xs uppercase tracking-[0.16em] text-ink-soft">
-          {isConfirmed ? "See you soon" : "Nearest available time"}
-        </p>
-        <p className="text-[11px] text-ink-soft">{dateLabel}</p>
-      </div>
-      <ul className="grid grid-cols-2 gap-x-6 gap-y-2">
-        {timeGroups.map((group) => (
-          <li
-            key={`${group.hour}-${group.timeLabel}`}
-            className="flex min-w-0 items-baseline justify-between gap-2 text-sm leading-snug"
-          >
-            <span className="min-w-0 truncate text-ink-soft">
-              {group.places.map((p) => p.cityLabel).join(" · ")}
-            </span>
-            <span className="shrink-0 font-medium text-ink">
-              {group.timeLabel}
-            </span>
-          </li>
-        ))}
-      </ul>
-      {!isConfirmed && moreCount > 0 && onViewMore ? (
+  const availabilityHeading = (
+    <div className="flex items-center justify-between gap-3">
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-ink-soft">
+        {hasBestTime ? "Best time" : "Availability"}
+      </p>
+      {onViewAvailability && !isCreating && catchUp.participants.length > 0 ? (
         <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
-            onViewMore();
+            onViewAvailability();
           }}
-          className="pt-0.5 text-left text-sm text-ocean hover:underline"
+          className="shrink-0 text-xs text-ocean underline underline-offset-2 transition-colors hover:text-ocean-deep"
         >
-          See {moreCount} more time{moreCount === 1 ? "" : "s"} that work
+          View all schedules
         </button>
       ) : null}
     </div>
+  );
+
+  if (hasBestTime && bestSlot) {
+    const first = bestSlot.localTimes[0];
+    const dateLabel = DateTime.fromISO(bestSlot.startUtc, { zone: "utc" })
+      .setZone(first?.timezone ?? "UTC")
+      .toFormat("cccc, LLLL d");
+    const places = [...bestSlot.localTimes].sort(
+      (a, b) => a.hour - b.hour || a.cityLabel.localeCompare(b.cityLabel)
+    );
+
+    return (
+      <div className="space-y-2.5 text-left">
+        {availabilityHeading}
+        <h3 className="font-display text-xl text-ink sm:text-2xl">
+          {dateLabel}
+        </h3>
+        <ul className="space-y-2 border-t border-ink/8 pt-3">
+          {places.map((place) => (
+            <li
+              key={`${place.participantId}-${place.hour}-${place.cityLabel}`}
+              className="flex min-w-0 items-baseline justify-between gap-2 text-sm leading-snug"
+            >
+              <span className="min-w-0 truncate font-medium text-ink">
+                {place.cityLabel}
+                {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+              </span>
+              <span className="shrink-0 text-ink-soft">{place.timeLabel}</span>
+            </li>
+          ))}
+        </ul>
+        {moreCount > 0 && onViewMore ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onViewMore();
+            }}
+            className="inline-flex items-center rounded-full border border-ink/10 bg-ink/[0.03] px-2.5 py-0.5 text-xs font-medium text-ink-soft transition hover:border-ocean/30 hover:text-ocean-deep"
+          >
+            + {moreCount} more
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2 text-left">
+      {availabilityHeading}
+      <p className="text-sm leading-relaxed text-ink-soft">
+        {isCreating
+          ? "Once your friends share their availability, we'll find a time that works for everyone."
+          : hasFriends
+            ? "We're still looking for a time that works for everyone."
+            : "Your postcard is ready to share. Times will appear once everyone adds their availability."}
+      </p>
+    </div>
+  );
+}
+
+const nameLinkClass =
+  "text-ink underline underline-offset-2 transition-colors hover:text-ocean-deep";
+
+function ParticipantNameButton({
+  participant,
+  onEdit,
+}: {
+  participant: Participant;
+  onEdit?: (participant: Participant) => void;
+}) {
+  const label = participant.name;
+  if (!onEdit) return <>{label}</>;
+  return (
+    <button
+      type="button"
+      className={nameLinkClass}
+      onClick={(e) => {
+        e.stopPropagation();
+        onEdit(participant);
+      }}
+    >
+      {label}
+    </button>
   );
 }
 
 export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
   const creator =
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
-  const isDraft =
-    catchUp.id === "draft" || !creator?.name || creator.name === "You";
-  const subtitle = isDraft ? null : `${creator.name} wants to catch up`;
+  const creatorName = creator?.name?.trim();
+  const showFrom = Boolean(creatorName && creatorName !== "You");
 
   return (
-    <div className="flex h-full flex-col p-5 sm:p-6">
+    <div className="flex h-full flex-col">
       <div className="min-h-0 w-full flex-1">
-        <CitiesFront participants={catchUp.participants} />
+        <CitiesFront photo={catchUp.photo} />
       </div>
-      <div className="mt-4 shrink-0 space-y-1 text-left">
+      <div className="postcard-layer-text shrink-0 space-y-1 px-4 py-3 text-left sm:px-5 sm:py-3.5">
         <h2 className="font-display text-xl tracking-tight text-ink sm:text-2xl">
           {catchUp.title}
         </h2>
-        {subtitle ? (
-          <p className="text-sm leading-relaxed text-ink-soft">{subtitle}</p>
+        {showFrom ? (
+          <p className="text-sm leading-relaxed text-ink-soft">
+            from {creatorName}
+          </p>
         ) : null}
       </div>
     </div>
@@ -297,16 +196,12 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
 export function PostcardBackContent({
   catchUp,
   bestSlot,
-  isConfirmed = false,
   moreCount = 0,
   onViewMore,
-  onAddParticipant,
   onEditParticipant,
   onViewAvailability,
-  onCopyLink,
-  onShare,
-  onJoin,
-  copied,
+  onUpdateTitle,
+  onUpdateMessage,
 }: {
   catchUp: CatchUp;
   bestSlot?: MeetingSlot | null;
@@ -320,126 +215,104 @@ export function PostcardBackContent({
   onShare?: () => void;
   onJoin?: () => void;
   copied?: boolean;
+  onUpdateTitle?: (title: string) => void;
+  onUpdateMessage?: (message: string) => void;
 }) {
   const creator =
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
-  const isDraft =
-    catchUp.id === "draft" || !creator?.name || creator.name === "You";
-  const subtitle = isDraft ? null : `${creator.name} wants to catch up`;
+  const creatorName = creator?.name?.trim();
+  const showFrom = Boolean(creatorName && creatorName !== "You");
+  const message = resolvePostcardMessage(catchUp.message);
+
+  const recipients = catchUp.participants
+    .filter((p) => !p.isCreator)
+    .filter((p) => p.name?.trim() && p.name.trim() !== "You");
+
+  // During create/preview with a single named person, treat them as sender only.
+  // If somehow no isCreator flags, show non-first participants as recipients.
+  const recipientPeople =
+    recipients.length > 0
+      ? recipients
+      : catchUp.participants.length > 1
+        ? catchUp.participants.slice(1)
+        : [];
 
   return (
-    <div className="flex h-full flex-col gap-5 overflow-hidden p-5 sm:gap-6 sm:p-7">
-      <div className="shrink-0 text-left">
-        <p className="font-display text-2xl leading-tight tracking-tight text-ink sm:text-3xl">
-          {catchUp.title}
+    <div className="flex h-full flex-col overflow-hidden p-4 sm:p-5">
+      {/* Eyebrow rule */}
+      <div className="flex shrink-0 items-center gap-3">
+        <p className="shrink-0 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-soft">
+          Postcard
         </p>
-        {subtitle ? (
-          <p className="mt-2 text-sm leading-relaxed text-ink-soft sm:text-[0.95rem]">
-            {subtitle}
-          </p>
-        ) : null}
+        <div className="h-px min-w-0 flex-1 bg-ink/20" aria-hidden />
       </div>
 
-      <div className="shrink-0 border-t border-ink/8 pt-4 sm:pt-5">
-        <ParticipantNames
-          participants={catchUp.participants}
-          onEdit={onEditParticipant}
+      {/* Title + stamp */}
+      <div className="mt-3 flex shrink-0 items-start justify-between gap-3">
+        <div className="min-w-0 flex-1 text-left">
+          <EditableTitle
+            value={catchUp.title}
+            editable={Boolean(onUpdateTitle)}
+            onChange={onUpdateTitle}
+          />
+          {showFrom && creator ? (
+            <p className="mt-1 text-sm text-ink-soft">
+              from{" "}
+              <ParticipantNameButton
+                participant={creator}
+                onEdit={onEditParticipant}
+              />
+            </p>
+          ) : null}
+          <p className={`${showFrom ? "mt-0.5" : "mt-1"} text-sm text-ink-soft`}>
+            to{" "}
+            {recipientPeople.length > 0 ? (
+              <span>
+                {recipientPeople.map((person, i) => (
+                  <span key={person.id}>
+                    {i > 0 ? ", " : ""}
+                    <ParticipantNameButton
+                      participant={person}
+                      onEdit={onEditParticipant}
+                    />
+                  </span>
+                ))}
+              </span>
+            ) : null}
+          </p>
+        </div>
+        <StampArea />
+      </div>
+
+      {message ? (
+        <div className="mt-4 min-h-0 shrink-0">
+          <MessageArea
+            value={message}
+            editable={Boolean(onUpdateMessage)}
+            onChange={onUpdateMessage}
+            fontFamily={messageFontFamily(catchUp.messageFont)}
+          />
+        </div>
+      ) : !showFrom ? (
+        <p className="mt-4 text-sm leading-relaxed text-ink-soft/70">
+          Enter details to see them appear here
+        </p>
+      ) : null}
+
+      <div className="my-4 shrink-0">
+        <PostcardDivider />
+      </div>
+
+      {/* Availability */}
+      <div className="min-h-0 flex-1 overflow-hidden">
+        <AvailabilitySection
+          catchUp={catchUp}
+          bestSlot={bestSlot ?? null}
+          moreCount={moreCount}
+          onViewMore={onViewMore}
           onViewAvailability={onViewAvailability}
         />
       </div>
-
-      <div className="min-h-0 flex-1 overflow-hidden border-t border-ink/8 pt-4 sm:pt-5">
-        <BestTimeBlock
-          catchUp={catchUp}
-          bestSlot={bestSlot ?? null}
-          isConfirmed={isConfirmed}
-          moreCount={moreCount}
-          onViewMore={onViewMore}
-        />
-      </div>
-
-      {(onCopyLink || onShare || onJoin) && (
-        <div className="mt-auto flex shrink-0 items-center gap-2 border-t border-ink/8 pt-4 sm:pt-5">
-          {onJoin ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onJoin();
-              }}
-              className="min-w-0 flex-1 rounded-xl bg-ocean-deep px-3 py-3 text-sm font-medium text-white"
-            >
-              Join
-            </button>
-          ) : null}
-          {onCopyLink ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onCopyLink();
-              }}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink/15 bg-white text-ink transition hover:border-ocean/40 hover:text-ocean-deep"
-              aria-label={copied ? "Link copied" : "Copy link"}
-              title={copied ? "Copied!" : "Copy link"}
-            >
-              {copied ? (
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>
-                  <path
-                    d="M5 13l4 4L19 7"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              ) : (
-                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>
-                  <rect
-                    x="9"
-                    y="9"
-                    width="11"
-                    height="11"
-                    rx="2"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                  />
-                  <path
-                    d="M5 15V7a2 2 0 0 1 2-2h8"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
-            </button>
-          ) : null}
-          {onShare ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onShare();
-              }}
-              className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-ink/15 bg-white text-ink transition hover:border-ocean/40 hover:text-ocean-deep"
-              aria-label="Share"
-              title="Share"
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" aria-hidden>
-                <circle cx="18" cy="5" r="2.25" stroke="currentColor" strokeWidth="1.75" />
-                <circle cx="6" cy="12" r="2.25" stroke="currentColor" strokeWidth="1.75" />
-                <circle cx="18" cy="19" r="2.25" stroke="currentColor" strokeWidth="1.75" />
-                <path
-                  d="M8.1 10.9l7.8-4.3M8.1 13.1l7.8 4.3"
-                  stroke="currentColor"
-                  strokeWidth="1.75"
-                  strokeLinecap="round"
-                />
-              </svg>
-            </button>
-          ) : null}
-        </div>
-      )}
     </div>
   );
 }
@@ -447,7 +320,7 @@ export function PostcardBackContent({
 export function PostcardFront({ catchUp }: { catchUp: CatchUp; animate?: boolean }) {
   return (
     <article className="postcard-product">
-      <div className="postcard-stage relative overflow-hidden rounded-2xl">
+      <div className="postcard-stage relative overflow-hidden">
         <div className="postcard-face postcard-face--static">
           <PostcardFrontContent catchUp={catchUp} />
         </div>
@@ -469,10 +342,12 @@ export function PostcardBack(props: {
   onShare?: () => void;
   onJoin?: () => void;
   copied?: boolean;
+  onUpdateTitle?: (title: string) => void;
+  onUpdateMessage?: (message: string) => void;
 }) {
   return (
     <article className="postcard-product">
-      <div className="postcard-stage relative overflow-hidden rounded-2xl">
+      <div className="postcard-stage relative overflow-hidden">
         <div className="postcard-face postcard-face--static">
           <PostcardBackContent {...props} />
         </div>
@@ -499,10 +374,11 @@ export function Postcard({
   onShare?: () => void;
   onJoin?: () => void;
   copied?: boolean;
+  onUpdateTitle?: (title: string) => void;
+  onUpdateMessage?: (message: string) => void;
 }) {
   if (side === "back") {
     return <PostcardBack catchUp={catchUp} {...rest} />;
   }
   return <PostcardFront catchUp={catchUp} />;
 }
-

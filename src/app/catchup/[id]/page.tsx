@@ -4,7 +4,6 @@ import { useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { SiteHeader } from "@/components/SiteHeader";
 import { FlippablePostcard } from "@/components/postcard";
-import { PostcardPreviewModal } from "@/components/PostcardPreviewModal";
 import {
   draftToParticipant,
   ParticipantEditorSheet,
@@ -14,7 +13,7 @@ import { TimeSlotCard } from "@/components/TimeSlotCard";
 import { AvailabilityTimelineSheet } from "@/components/AvailabilityTimeline";
 import { Button } from "@/components/ui";
 import { useCatchUp } from "@/hooks/useCatchUp";
-import type { Participant } from "@/lib/types";
+import type { MeetingSlot, Participant } from "@/lib/types";
 
 export default function CatchUpInvitationPage() {
   const params = useParams<{ id: string }>();
@@ -38,11 +37,11 @@ export default function CatchUpInvitationPage() {
   } = useCatchUp(id, encoded);
 
   const [copied, setCopied] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [editorMode, setEditorMode] = useState<"add" | "edit" | "join" | null>(null);
   const [editing, setEditing] = useState<Participant | null>(null);
   const recommendationsRef = useRef<HTMLElement>(null);
+  const postcardRef = useRef<HTMLDivElement>(null);
 
   async function copyLink() {
     if (!shareUrl) return;
@@ -72,6 +71,15 @@ export default function CatchUpInvitationPage() {
     recommendationsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  function scrollToPostcard() {
+    postcardRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function handleSelectSlot(slot: MeetingSlot) {
+    selectSlot(slot);
+    window.setTimeout(() => scrollToPostcard(), 80);
+  }
+
   function handleSaveDraft(draft: ParticipantDraft) {
     if (editorMode === "edit" && editing) {
       updateParticipant(editing.id, draftToParticipant(draft, { id: editing.id, isCreator: editing.isCreator }));
@@ -98,7 +106,7 @@ export default function CatchUpInvitationPage() {
             Ask your friend to share the full postcard link.
           </p>
           <Button className="mt-8" onClick={() => router.push("/create")}>
-            Create a postcard
+            Create a postcard invite
           </Button>
         </main>
       </div>
@@ -108,31 +116,21 @@ export default function CatchUpInvitationPage() {
   return (
     <div className="flex min-h-full flex-col">
       <SiteHeader compact />
-      <main className="mx-auto w-full max-w-4xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
+      <main className="mx-auto w-full max-w-[36rem] flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5 lg:max-w-4xl">
         <div className="animate-fade-rise text-center">
           <h1 className="font-display text-2xl text-ink sm:text-3xl">
-            Your postcard is ready to share
+            Your invitation is ready
           </h1>
         </div>
 
-        <div className="mt-6 lg:hidden">
-          <Button
-            type="button"
-            variant="secondary"
-            className="w-full"
-            onClick={() => setPreviewOpen(true)}
-          >
-            Preview postcard
-          </Button>
-        </div>
-
-        <div className="mt-8 hidden justify-center lg:flex">
+        <div ref={postcardRef} className="mx-auto mt-5 flex max-w-[42rem] scroll-mt-4 justify-center">
           <FlippablePostcard
             catchUp={catchUp}
             bestSlot={bestSlot}
             isConfirmed={Boolean(selectedSlot)}
             moreCount={moreCount}
             initialSide="back"
+            large
             onViewMore={scrollToRecommendations}
             onAddParticipant={() => {
               setEditing(null);
@@ -149,32 +147,31 @@ export default function CatchUpInvitationPage() {
               setEditing(null);
               setEditorMode("join");
             }}
+            onEdit={() => {
+              const p = searchParams.get("p");
+              router.push(
+                p
+                  ? `/catchup/${catchUp.id}/edit?p=${p}`
+                  : `/catchup/${catchUp.id}/edit`
+              );
+            }}
             copied={copied}
           />
         </div>
 
-        <section className="mt-6 space-y-3 lg:hidden">
+        <section className="mx-auto mt-6 max-w-[36rem] space-y-3 lg:hidden">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-medium text-ink">Who&apos;s joining</p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                className="text-sm text-ocean hover:underline"
-                onClick={() => setTimelineOpen(true)}
-              >
-                View availability
-              </button>
-              <button
-                type="button"
-                className="text-sm text-ocean hover:underline"
-                onClick={() => {
-                  setEditing(null);
-                  setEditorMode("add");
-                }}
-              >
-                + Add
-              </button>
-            </div>
+            <button
+              type="button"
+              className="text-sm text-ocean hover:underline"
+              onClick={() => {
+                setEditing(null);
+                setEditorMode("add");
+              }}
+            >
+              + Add
+            </button>
           </div>
           <ul className="space-y-2">
             {catchUp.participants.map((p) => (
@@ -183,7 +180,7 @@ export default function CatchUpInvitationPage() {
                 className="flex items-center justify-between rounded-xl border border-ink/10 bg-white/70 px-3 py-2 text-sm"
               >
                 <span>
-                  {p.name} {p.flagEmoji ?? ""} · {p.cityLabel}
+                  {p.name} · {p.cityLabel}
                 </span>
                 <button
                   type="button"
@@ -200,7 +197,7 @@ export default function CatchUpInvitationPage() {
           </ul>
         </section>
 
-        <section ref={recommendationsRef} className="mt-10 scroll-mt-8">
+        <section ref={recommendationsRef} className="mt-8 scroll-mt-8">
           <div className="flex items-end justify-between gap-3">
             <div>
               <h2 className="font-display text-2xl text-ink">
@@ -214,26 +211,27 @@ export default function CatchUpInvitationPage() {
           </div>
 
           {catchUp.participants.length < 2 ? (
-            <div className="mt-5 rounded-2xl border border-ink/10 bg-white p-6 text-center shadow-[0_12px_32px_rgba(31,79,92,0.08)]">
+            <div className="mt-4 rounded-2xl border border-ink/10 bg-white p-6 text-center">
               <p className="text-sm text-ink-soft">
                 Share this postcard with friends to find a time together.
               </p>
             </div>
           ) : slots.length === 0 ? (
-            <div className="mt-5 rounded-2xl border border-ink/10 bg-white p-6 text-center shadow-[0_12px_32px_rgba(31,79,92,0.08)]">
+            <div className="mt-4 rounded-2xl border border-ink/10 bg-white p-6 text-center">
               <p className="text-sm text-ink-soft">
                 We couldn&apos;t find a time that works yet. Try updating availability,
                 then check again.
               </p>
             </div>
           ) : (
-            <ul className="mt-5 grid gap-4 sm:grid-cols-2">
+            <ul className="mt-4 grid gap-4 lg:grid-cols-2">
               {slots.map((slot, index) => (
                 <li key={slot.id}>
                   <TimeSlotCard
                     slot={slot}
                     featured={index === 0}
-                    onSelect={() => selectSlot(slot)}
+                    selected={selectedSlot?.id === slot.id}
+                    onSelect={() => handleSelectSlot(slot)}
                   />
                 </li>
               ))}
@@ -242,48 +240,13 @@ export default function CatchUpInvitationPage() {
         </section>
       </main>
 
-      <PostcardPreviewModal
-        open={previewOpen}
-        onClose={() => setPreviewOpen(false)}
-        catchUp={catchUp}
-        bestSlot={bestSlot}
-        isConfirmed={Boolean(selectedSlot)}
-        moreCount={moreCount}
-        onViewMore={() => {
-          setPreviewOpen(false);
-          scrollToRecommendations();
-        }}
-        onAddParticipant={() => {
-          setPreviewOpen(false);
-          setEditing(null);
-          setEditorMode("add");
-        }}
-        onEditParticipant={(p) => {
-          setPreviewOpen(false);
-          setEditing(p);
-          setEditorMode("edit");
-        }}
-        onViewAvailability={() => {
-          setPreviewOpen(false);
-          setTimelineOpen(true);
-        }}
-        onCopyLink={copyLink}
-        onShare={shareLink}
-        onJoin={() => {
-          setPreviewOpen(false);
-          setEditing(null);
-          setEditorMode("join");
-        }}
-        copied={copied}
-      />
-
       <AvailabilityTimelineSheet
         open={timelineOpen}
         onClose={() => setTimelineOpen(false)}
         participants={catchUp.participants}
         slots={slots}
         initialSlotId={bestSlot?.id}
-        onSelectSlot={selectSlot}
+        onSelectSlot={handleSelectSlot}
       />
 
       <ParticipantEditorSheet
