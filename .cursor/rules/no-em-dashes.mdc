@@ -1,0 +1,24 @@
+---
+description: No em dashes in user-facing copy
+alwaysApply: true
+---
+
+# No em dashes in user-facing copy
+
+Do not use em dashes (`—`) anywhere in user-facing text (UI labels, headlines, body copy, errors, share text, metadata descriptions).
+
+Prefer:
+- periods
+- commas
+- parentheses
+- colons
+
+```tsx
+// ❌ BAD
+<p>The postcard is the invitation — share it with friends.</p>
+
+// ✅ GOOD
+<p>The postcard is the invitation. Share it with friends.</p>
+```
+
+This does not apply to code operators, regex character classes, or non-user-facing comments unless those comments mirror product copy.

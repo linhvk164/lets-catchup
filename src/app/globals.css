@@ -1,0 +1,261 @@
+@import "tailwindcss";
+
+:root {
+  --ink: #1e3340;
+  --ink-soft: #3d5563;
+  --paper: #f7f9fb;
+  --paper-deep: #eef2f5;
+  --sky: #c9dde8;
+  --sky-deep: #8fb6c9;
+  --ocean: #2f6f7e;
+  --ocean-deep: #1f4f5c;
+  --stamp: #b85c45;
+  --stamp-soft: #d48976;
+  --gold: #c9a06a;
+  --line: rgba(30, 51, 64, 0.12);
+  --shadow: 0 18px 50px rgba(31, 79, 92, 0.14);
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-sky: var(--sky);
+  --color-sky-deep: var(--sky-deep);
+  --color-ocean: var(--ocean);
+  --color-ocean-deep: var(--ocean-deep);
+  --color-stamp: var(--stamp);
+  --color-stamp-soft: var(--stamp-soft);
+  --color-gold: var(--gold);
+  --font-display: var(--font-fraunces);
+  --font-sans: var(--font-outfit);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100%;
+  color: var(--ink);
+  font-family: var(--font-outfit), system-ui, sans-serif;
+  background:
+    radial-gradient(ellipse 80% 50% at 10% -10%, rgba(143, 182, 201, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 90% 0%, rgba(201, 160, 106, 0.12), transparent 50%),
+    linear-gradient(180deg, #eef4f7 0%, #f7f9fb 45%, #f4f6f8 100%);
+  background-attachment: fixed;
+}
+
+body::before {
+  content: "";
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.45'/%3E%3C/svg%3E");
+  mix-blend-mode: multiply;
+  z-index: 0;
+}
+
+#__next,
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+.font-display {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.paper-card {
+  background:
+    linear-gradient(145deg, rgba(255, 252, 246, 0.95), rgba(243, 234, 218, 0.92));
+  border: 1px solid rgba(30, 51, 64, 0.08);
+  box-shadow: var(--shadow);
+}
+
+.paper-texture {
+  background-image:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.35), transparent 40%),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.35'/%3E%3C/svg%3E");
+}
+
+@keyframes draw-thread {
+  from {
+    stroke-dashoffset: 280;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes float-soft {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-2deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(-1deg);
+  }
+}
+
+@keyframes fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pin-drop {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.8);
+  }
+  70% {
+    transform: translateY(2px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes flip-in {
+  from {
+    opacity: 0;
+    transform: rotateY(-18deg) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: rotateY(0) scale(1);
+  }
+}
+
+.animate-float {
+  animation: float-soft 6s ease-in-out infinite;
+}
+
+.animate-fade-rise {
+  animation: fade-rise 0.7s ease-out both;
+}
+
+.animate-pin {
+  animation: pin-drop 0.8s ease-out both;
+}
+
+.animate-thread {
+  stroke-dasharray: 280;
+  animation: draw-thread 1.4s ease-out forwards;
+}
+
+.animate-flip-in {
+  animation: flip-in 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  transform-style: preserve-3d;
+}
+
+/*
+  Physical postcard: identical size both sides.
+  Width is capped by design max AND by viewport height so the card
+  (plus page chrome / flip control) never overflows the screen.
+*/
+.postcard-product {
+  --postcard-max-w: 30rem; /* 480px */
+  /* Header, title, padding, flip control */
+  --postcard-vh-reserve: 14rem;
+  width: min(
+    100%,
+    var(--postcard-max-w),
+    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15)
+  );
+  margin-inline: auto;
+}
+
+.postcard-product--compact {
+  --postcard-max-w: 25rem; /* 400px */
+  /* Sticky sidebar: top offset + flip control */
+  --postcard-vh-reserve: 9rem;
+}
+
+.postcard-product--viewport {
+  /* Modal / overlay: close chip + padding + flip */
+  --postcard-vh-reserve: 6.5rem;
+}
+
+@media (max-height: 720px) {
+  .postcard-product {
+    --postcard-vh-reserve: 11.5rem;
+  }
+
+  .postcard-product--compact {
+    --postcard-vh-reserve: 7.5rem;
+  }
+
+  .postcard-product--viewport {
+    --postcard-vh-reserve: 5.5rem;
+  }
+}
+
+.postcard-stage {
+  width: 100%;
+  aspect-ratio: 3 / 4.15;
+  perspective: 1400px;
+}
+
+.postcard-flipper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.postcard-flipper.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.postcard-face {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 1rem;
+  background: #ffffff;
+  border: 1px solid rgba(30, 51, 64, 0.08);
+  box-shadow: var(--shadow);
+}
+
+.postcard-face--static {
+  position: relative;
+  inset: auto;
+  height: 100%;
+  transform: none;
+  backface-visibility: visible;
+}
+
+.postcard-face--back {
+  transform: rotateY(180deg);
+}
+
+::view-transition-old(opa-postcard),
+::view-transition-new(opa-postcard) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  height: 100%;
+  object-fit: contain;
+}
