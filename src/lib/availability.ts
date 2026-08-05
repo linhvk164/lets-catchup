@@ -250,12 +250,14 @@ function ruleSpecificity(rule: AvailabilityRule): number {
   if (!days || days.length === 0 || days.length === 7) return 0;
   if (days.length === 5 && WEEKDAYS.every((d) => days.includes(d))) return 1;
   if (days.length === 2 && WEEKENDS.every((d) => days.includes(d))) return 1;
-  return 2;
+  // Named day lists (including single days and mixed weekday/weekend picks)
+  return 2 + Math.max(0, 5 - days.length);
 }
 
 /**
- * Resolve overlapping recurring rules so more specific day scopes win.
- * Then regroup identical windows back into compact rules for display/scheduling.
+ * Resolve overlapping recurring rules into one window per day.
+ * More specific day scopes beat general ranges; later equal-specificity
+ * statements override earlier ones. Then regroup identical windows.
  */
 function normalizeOverlappingRules(rules: AvailabilityRule[]): AvailabilityRule[] {
   if (rules.length <= 1) return rules;
@@ -277,6 +279,7 @@ function normalizeOverlappingRules(rules: AvailabilityRule[]): AvailabilityRule[
     const specificity = ruleSpecificity(rule);
     for (const day of days) {
       const existing = byDay.get(day);
+      // Specific beats general; at the same specificity, later wins.
       const wins =
         !existing ||
         specificity > existing.specificity ||
@@ -361,18 +364,55 @@ function daysForClause(text: string): DayOfWeek[] | undefined {
   return specific.length > 0 ? specific : undefined;
 }
 
+const DAY_START_RE =
+  /^(?:and\s+|or\s+)?(?:mon(?:day)?s?|tue(?:s|sday)?s?|wed(?:nesday)?s?|thu(?:rs|rsday|r)?s?|fri(?:day)?s?|sat(?:urday)?s?|sun(?:day)?s?|weekdays?|weekends?)\b/i;
+
+const DAY_END_RE =
+  /(?:mon(?:day)?s?|tue(?:s|sday)?s?|wed(?:nesday)?s?|thu(?:rs|rsday|r)?s?|fri(?:day)?s?|sat(?:urday)?s?|sun(?:day)?s?|weekdays?|weekends?)\s*$/i;
+
+/** True when a comma is continuing a day enumeration ("friday, saturday and thursday"). */
+function isDayListCommaContinuation(left: string, right: string): boolean {
+  return DAY_END_RE.test(left.trim()) && DAY_START_RE.test(right.trim());
+}
+
 /**
  * Split one availability note into separate rule clauses.
- * Commas separate day scopes ("Weekdays after work, weekends anytime").
+ * Sentence boundaries always split. Commas split different scopes
+ * ("Weekdays after work, weekends anytime") but NOT day lists
+ * ("Free friday, saturday and thursday").
  */
 function splitClauses(raw: string): string[] {
   const primary = raw
-    .split(/(?<=[.!?])\s+|\n+|;\s+|,\s+/)
+    .split(/(?<=[.!?])\s+|\n+|;\s+/)
     .map((c) => c.trim())
     .filter((c) => c.length > 0);
 
-  const refined: string[] = [];
+  const withCommaScopes: string[] = [];
   for (const part of primary) {
+    const commaParts = part
+      .split(/,\s+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    if (commaParts.length <= 1) {
+      withCommaScopes.push(part);
+      continue;
+    }
+
+    let current = commaParts[0];
+    for (let i = 1; i < commaParts.length; i++) {
+      const next = commaParts[i];
+      if (isDayListCommaContinuation(current, next)) {
+        current = `${current}, ${next}`;
+      } else {
+        withCommaScopes.push(current);
+        current = next;
+      }
+    }
+    withCommaScopes.push(current);
+  }
+
+  const refined: string[] = [];
+  for (const part of withCommaScopes) {
     // If a fragment still mixes weekdays + weekends, split on "and" / space boundary.
     const mixed =
       part.match(

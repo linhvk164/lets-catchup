@@ -364,4 +364,34 @@ describe("parseAvailabilityInput", () => {
       "Not available: Mon–Fri, 12 PM – 1 PM",
     ]);
   });
+
+  it("lets later specific days override an earlier weekday range", () => {
+    const parsed = parseAvailabilityInput(
+      "Weekdays 10am–5pm. Free friday, saturday and thursday. Not free Sunday."
+    );
+
+    const weekdayBlock = parsed.rules.find((r) => r.start?.hour === 10);
+    assert.ok(weekdayBlock);
+    assert.deepEqual(weekdayBlock.days, ["monday", "tuesday", "wednesday"]);
+    assert.equal(weekdayBlock.end?.hour, 17);
+
+    const anytimeBlock = parsed.rules.find((r) => r.label === "Anytime");
+    assert.ok(anytimeBlock);
+    assert.deepEqual(anytimeBlock.days, ["thursday", "friday", "saturday"]);
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Wed: 10 AM – 5 PM",
+      "Thu–Sat: Anytime",
+      "Not available: Sun",
+    ]);
+  });
+
+  it("lets a later free Friday override weekdays for that day only", () => {
+    const parsed = parseAvailabilityInput("Weekdays 10 AM–5 PM. Free Friday.");
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Thu: 10 AM – 5 PM",
+      "Fri: Anytime",
+    ]);
+  });
 });

@@ -72,11 +72,11 @@ export function TimezonePicker({
           error ? "border-stamp/60" : "border-ink/10"
         }`}
       >
-        <div className="flex items-baseline justify-between gap-3">
+        <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
           <p className="min-w-0 text-base font-medium text-ink">
             {display.primary}
           </p>
-          <p className="shrink-0 text-right text-xs text-ink-soft">
+          <p className="min-w-0 text-xs text-ink-soft sm:shrink-0 sm:text-right">
             {display.secondary}
             <span className="mx-1.5 text-ink/20">·</span>
             {display.tertiary}
