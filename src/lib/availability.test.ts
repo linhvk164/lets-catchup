@@ -262,4 +262,106 @@ describe("parseAvailabilityInput", () => {
     assert.equal(parsed.rules[0]?.label, "Before");
     assert.deepEqual(parsed.debugLines, ["Mon–Fri: Before 11 PM"]);
   });
+
+  it("treats not-free time ranges as exclusions on the prior day context", () => {
+    const parsed = parseAvailabilityInput(
+      "Weekdays 10am–5pm. Not free from 12pm to 1pm"
+    );
+
+    assert.equal(parsed.rules.length, 2);
+    assert.deepEqual(parsed.rules[0]?.days, [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+    ]);
+    assert.equal(parsed.rules[0]?.start?.hour, 10);
+    assert.equal(parsed.rules[0]?.end?.hour, 12);
+    assert.equal(parsed.rules[1]?.start?.hour, 13);
+    assert.equal(parsed.rules[1]?.end?.hour, 17);
+
+    assert.ok(
+      parsed.rules.every(
+        (r) => !r.days?.includes("saturday") && !r.days?.includes("sunday")
+      )
+    );
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: 10 AM – 12 PM, 1 PM – 5 PM",
+      "Not available: Mon–Fri, 12 PM – 1 PM",
+    ]);
+  });
+
+  it("treats lunch break as a weekday time exclusion", () => {
+    const parsed = parseAvailabilityInput(
+      "Free Monday to Friday 9-5. Lunch break 12-1."
+    );
+
+    assert.equal(parsed.rules.length, 2);
+    assert.equal(parsed.rules[0]?.start?.hour, 9);
+    assert.equal(parsed.rules[0]?.end?.hour, 12);
+    assert.equal(parsed.rules[1]?.start?.hour, 13);
+    assert.equal(parsed.rules[1]?.end?.hour, 17);
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: 9 AM – 12 PM, 1 PM – 5 PM",
+      "Not available: Mon–Fri, 12 PM – 1 PM",
+    ]);
+  });
+
+  it("cuts excepted time ranges out of weekdays after hours", () => {
+    const parsed = parseAvailabilityInput(
+      "Weekdays after 6 PM except 8-9 PM."
+    );
+
+    assert.equal(parsed.rules.length, 2);
+    assert.equal(parsed.rules[0]?.start?.hour, 18);
+    assert.equal(parsed.rules[0]?.end?.hour, 20);
+    assert.equal(parsed.rules[1]?.start?.hour, 21);
+    assert.equal(parsed.rules[1]?.end?.hour, 0);
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: 6 PM – 8 PM, 9 PM – 12 AM",
+      "Not available: Mon–Fri, 8 PM – 9 PM",
+    ]);
+  });
+
+  it("applies dayless exceptions only to the previous availability scope", () => {
+    const parsed = parseAvailabilityInput(
+      "Weekdays 10am–5pm. Not free from 12pm to 1pm. Free anytime on weekends."
+    );
+
+    assert.equal(parsed.rules.length, 3);
+
+    const weekdayMorning = parsed.rules.find((r) => r.start?.hour === 10);
+    assert.ok(weekdayMorning);
+    assert.deepEqual(weekdayMorning.days, [
+      "monday",
+      "tuesday",
+      "wednesday",
+      "thursday",
+      "friday",
+    ]);
+    assert.equal(weekdayMorning.end?.hour, 12);
+
+    const weekdayAfternoon = parsed.rules.find((r) => r.start?.hour === 13);
+    assert.ok(weekdayAfternoon);
+    assert.equal(weekdayAfternoon.end?.hour, 17);
+
+    const weekends = parsed.rules.find((r) =>
+      r.days?.includes("saturday")
+    );
+    assert.ok(weekends);
+    assert.deepEqual(weekends.days, ["saturday", "sunday"]);
+    assert.equal(weekends.start?.hour, 0);
+    assert.equal(weekends.end?.hour, 0);
+    assert.equal(weekends.label, "Anytime");
+
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: 10 AM – 12 PM, 1 PM – 5 PM",
+      "Sat–Sun: Anytime",
+      "Not available: Mon–Fri, 12 PM – 1 PM",
+    ]);
+  });
 });

@@ -52,7 +52,15 @@ const DAY_SHORT: Record<DayOfWeek, string> = {
 };
 
 const EXCLUSION_MARKER =
-  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|unavailable\s+on)\b/i;
+  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|unavailable(?:\s+on)?|not\s+free|not\s+available)\b/i;
+
+/** Recurring time-of-day hole punched out of availability (not a calendar date). */
+interface TimeExclusion {
+  start: TimeOfDay;
+  end: TimeOfDay;
+  days?: DayOfWeek[];
+  label: string;
+}
 
 export interface ParsedAvailability {
   rules: AvailabilityRule[];
@@ -472,13 +480,97 @@ function formatExceptionDebug(ex: ExceptionDate): string {
   return `Not available: ${nice}`;
 }
 
+function formatTimeExclusionDebug(ex: TimeExclusion): string {
+  return `Not available: ${formatDayGroup(ex.days)}, ${formatClock(ex.start)} – ${formatClock(ex.end)}`;
+}
+
+function sameDaySet(a?: DayOfWeek[], b?: DayOfWeek[]): boolean {
+  const left = a?.length ? ALL_DAYS.filter((d) => a.includes(d)) : ALL_DAYS;
+  const right = b?.length ? ALL_DAYS.filter((d) => b.includes(d)) : ALL_DAYS;
+  if (left.length !== right.length) return false;
+  return left.every((d, i) => d === right[i]);
+}
+
+function hasSpecialDebugLabel(rule: AvailabilityRule): boolean {
+  return (
+    rule.label === "After work" ||
+    rule.label === "Before work" ||
+    rule.label === "During work hours" ||
+    rule.label === "Evenings" ||
+    rule.label === "Before"
+  );
+}
+
+/** Group same-day windows onto one confirmation line: "Mon–Fri: 10 AM – 12 PM, 1 PM – 5 PM". */
+function formatRulesDebug(rules: AvailabilityRule[]): string[] {
+  const lines: string[] = [];
+  const used = new Set<number>();
+
+  for (let i = 0; i < rules.length; i++) {
+    if (used.has(i)) continue;
+    const rule = rules[i];
+
+    if (hasSpecialDebugLabel(rule)) {
+      lines.push(formatRuleDebug(rule));
+      used.add(i);
+      continue;
+    }
+
+    if (
+      rule.start &&
+      rule.end &&
+      !isFullDayTimes(rule.start, rule.end) &&
+      !rule.label
+    ) {
+      const peerIndexes: number[] = [];
+      for (let j = i; j < rules.length; j++) {
+        if (used.has(j)) continue;
+        const other = rules[j];
+        if (
+          other.start &&
+          other.end &&
+          !isFullDayTimes(other.start, other.end) &&
+          !other.label &&
+          !hasSpecialDebugLabel(other) &&
+          sameDaySet(rule.days, other.days)
+        ) {
+          peerIndexes.push(j);
+        }
+      }
+
+      const ranges = peerIndexes
+        .map((idx) => rules[idx])
+        .sort((a, b) => {
+          const aStart = (a.start?.hour ?? 0) * 60 + (a.start?.minute ?? 0);
+          const bStart = (b.start?.hour ?? 0) * 60 + (b.start?.minute ?? 0);
+          // Midnight-end overnight windows sort by start; treat end-at-0 as late.
+          return aStart - bStart;
+        })
+        .map(
+          (r) => `${formatClock(r.start!)} – ${formatClock(r.end!)}`
+        );
+
+      lines.push(`${formatDayGroup(rule.days)}: ${ranges.join(", ")}`);
+      for (const idx of peerIndexes) used.add(idx);
+      continue;
+    }
+
+    lines.push(formatRuleDebug(rule));
+    used.add(i);
+  }
+
+  return lines;
+}
+
 function buildConfirmation(
   rules: AvailabilityRule[],
   exceptions: ExceptionDate[],
-  excludedDays: DayOfWeek[] = []
+  excludedDays: DayOfWeek[] = [],
+  timeExclusions: TimeExclusion[] = []
 ): { summary: string; detail: string; debugLines: string[] } {
   const debugLines = [
-    ...rules.map(formatRuleDebug),
+    ...formatRulesDebug(rules),
+    ...timeExclusions.map(formatTimeExclusionDebug),
     ...(excludedDays.length > 0
       ? [`Not available: ${formatDayGroup(excludedDays)}`]
       : []),
@@ -861,11 +953,17 @@ function splitBaseAndExclusions(input: string): {
 
 function parseExclusionSegment(
   text: string,
-  now: DateTime
-): { exceptions: ExceptionDate[]; excludedDays: DayOfWeek[] } {
+  now: DateTime,
+  contextDays?: DayOfWeek[]
+): {
+  exceptions: ExceptionDate[];
+  excludedDays: DayOfWeek[];
+  timeExclusions: TimeExclusion[];
+} {
   let working = text.trim();
   const exceptions: ExceptionDate[] = [];
   const excludedDaySet = new Set<DayOfWeek>();
+  const timeExclusions: TimeExclusion[] = [];
   const seenDates = new Set<string>();
 
   function pushDate(ex: ExceptionDate) {
@@ -932,14 +1030,184 @@ function parseExclusionSegment(
 
   working = working.replace(/\s{2,}/g, " ").trim();
 
-  // Remaining weekday names are recurring exclusions
-  for (const day of extractDays(working)) {
-    excludedDaySet.add(day);
+  // Time-range exclusions ("from 12pm to 1pm", "8-9 PM", "between noon and 2")
+  const range = extractTimeRange(working);
+  const namedDays = daysForClause(working) ?? extractDays(working);
+  if (range) {
+    timeExclusions.push({
+      start: range.start,
+      end: range.end,
+      days: namedDays.length > 0 ? namedDays : contextDays,
+      label: text.trim(),
+    });
+    // Strip clock tokens so leftover day names aren't double-counted as full-day blocks
+    working = working
+      .replace(
+        /\b(?:from|between)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\s*(?:to|and|-|–|—)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?/gi,
+        " "
+      )
+      .replace(
+        /\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\s*(?:to|-|–|—)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?/gi,
+        " "
+      )
+      .replace(/\b(?:noon|midnight)\b/gi, " ")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+  } else {
+    // Remaining weekday names are recurring full-day exclusions
+    for (const day of extractDays(working)) {
+      excludedDaySet.add(day);
+    }
   }
 
   return {
     exceptions,
     excludedDays: ALL_DAYS.filter((d) => excludedDaySet.has(d)),
+    timeExclusions,
+  };
+}
+
+function toMinutes(t: TimeOfDay): number {
+  return t.hour * 60 + t.minute;
+}
+
+function minutesToTod(total: number): TimeOfDay {
+  if (total >= 24 * 60) return tod(0);
+  const hour = Math.floor(total / 60);
+  const minute = total % 60;
+  return tod(hour, minute);
+}
+
+/** Inclusive start / exclusive-ish end in minutes from midnight; midnight end = 24*60. */
+function windowBounds(
+  start: TimeOfDay,
+  end: TimeOfDay
+): { start: number; end: number } {
+  if (isFullDayTimes(start, end)) return { start: 0, end: 24 * 60 };
+  const s = toMinutes(start);
+  let e = toMinutes(end);
+  if (e <= s) e = e === 0 ? 24 * 60 : e + 24 * 60;
+  return { start: s, end: e };
+}
+
+function cutWindow(
+  start: TimeOfDay,
+  end: TimeOfDay,
+  cutStart: TimeOfDay,
+  cutEnd: TimeOfDay
+): { start: TimeOfDay; end: TimeOfDay }[] {
+  const win = windowBounds(start, end);
+  const cut = windowBounds(cutStart, cutEnd);
+  const lo = Math.max(win.start, cut.start);
+  const hi = Math.min(win.end, cut.end);
+  if (lo >= hi) return [{ start, end }];
+
+  const parts: { start: TimeOfDay; end: TimeOfDay }[] = [];
+  if (win.start < lo) {
+    parts.push({ start: minutesToTod(win.start), end: minutesToTod(lo) });
+  }
+  if (hi < win.end) {
+    parts.push({ start: minutesToTod(hi), end: minutesToTod(win.end) });
+  }
+  return parts;
+}
+
+/**
+ * Punch unavailable time ranges out of availability rules.
+ * Day-scoped exclusions only affect matching days; remaining days keep the original window.
+ */
+function applyTimeExclusions(
+  rules: AvailabilityRule[],
+  exclusions: TimeExclusion[]
+): AvailabilityRule[] {
+  if (exclusions.length === 0) return rules;
+
+  const result: AvailabilityRule[] = [];
+
+  for (const rule of rules) {
+    if (!rule.start || !rule.end) {
+      result.push(rule);
+      continue;
+    }
+
+    const ruleDays = rule.days?.length ? rule.days : ALL_DAYS;
+    const applicable = exclusions.filter((ex) => {
+      const exDays = ex.days?.length ? ex.days : ruleDays;
+      return ruleDays.some((d) => exDays.includes(d));
+    });
+
+    if (applicable.length === 0) {
+      result.push(rule);
+      continue;
+    }
+
+    const affectedDays = ruleDays.filter((d) =>
+      applicable.some((ex) => (ex.days?.length ? ex.days : ruleDays).includes(d))
+    );
+    const unaffectedDays = ruleDays.filter((d) => !affectedDays.includes(d));
+
+    if (unaffectedDays.length > 0) {
+      result.push({
+        ...rule,
+        days: unaffectedDays,
+        kind:
+          unaffectedDays.length === 7
+            ? rule.kind
+            : rule.kind === "between_times" || rule.kind === "broad"
+              ? "specific_days"
+              : rule.kind,
+      });
+    }
+
+    if (affectedDays.length === 0) continue;
+
+    // Only apply exclusions that intersect these affected days
+    const cuts = applicable.filter((ex) => {
+      const exDays = ex.days?.length ? ex.days : ruleDays;
+      return affectedDays.some((d) => exDays.includes(d));
+    });
+
+    let windows: { start: TimeOfDay; end: TimeOfDay }[] = [
+      { start: rule.start, end: rule.end },
+    ];
+    for (const cut of cuts) {
+      windows = windows.flatMap((w) =>
+        cutWindow(w.start, w.end, cut.start, cut.end)
+      );
+    }
+
+    for (const w of windows) {
+      result.push({
+        kind: "specific_days",
+        days: affectedDays,
+        start: w.start,
+        end: w.end,
+        raw: rule.raw,
+      });
+    }
+  }
+
+  return result;
+}
+
+function isLunchBreakClause(text: string): boolean {
+  return /\blunch(?:\s+break)?\b/i.test(text);
+}
+
+function parseLunchExclusion(
+  clause: string,
+  contextDays?: DayOfWeek[]
+): TimeExclusion | null {
+  if (!isLunchBreakClause(clause)) return null;
+  const range = extractTimeRange(clause) ?? {
+    start: tod(12),
+    end: tod(13),
+  };
+  return {
+    start: range.start,
+    end: range.end,
+    days: daysForClause(clause.toLowerCase()) ?? contextDays,
+    label: clause.trim(),
   };
 }
 
@@ -1128,10 +1396,21 @@ export function extractExceptionsFromText(
   return { exceptions, remainder };
 }
 
+function rememberAvailabilityDays(
+  clause: string,
+  rule: AvailabilityRule
+): DayOfWeek[] | undefined {
+  if (rule.days?.length) return rule.days;
+  const lower = clause.toLowerCase();
+  if (hasWeekdays(lower)) return [...WEEKDAYS];
+  if (hasWeekends(lower)) return [...WEEKENDS];
+  return undefined;
+}
+
 /**
  * Deterministic natural-language availability parser.
- * Exact times always win over vague categories.
- * Exclusion clauses ("except …") are peeled first, then applied to the base schedule.
+ * Clauses are processed in order: each exclusion applies to the closest
+ * previous availability scope unless it names its own days.
  */
 export function parseAvailabilityInput(
   input: string,
@@ -1154,54 +1433,75 @@ export function parseAvailabilityInput(
     };
   }
 
-  // 1. Peel exclusion clauses so their days never become availability.
-  const { base: exclusionBase, exclusionTexts } = splitBaseAndExclusions(raw);
-  const excludedDaySet = new Set<DayOfWeek>();
-  const exclusionExceptions: ExceptionDate[] = [];
-  for (const text of exclusionTexts) {
-    const parsed = parseExclusionSegment(text, now);
-    for (const day of parsed.excludedDays) excludedDaySet.add(day);
-    exclusionExceptions.push(...parsed.exceptions);
-  }
-  const excludedDays = ALL_DAYS.filter((d) => excludedDaySet.has(d));
-
-  // 2. Pull remaining date overrides from the base text (e.g. "not tomorrow").
+  // Pull embedded date overrides (e.g. "not tomorrow") without peeling later clauses.
   const { exceptions: baseExceptions, remainder } = extractExceptionsFromText(
-    exclusionBase || raw,
+    raw,
     now
   );
 
-  const exceptionSeen = new Set<string>();
-  const exceptions: ExceptionDate[] = [];
-  for (const ex of [...exclusionExceptions, ...baseExceptions]) {
-    const key = `${ex.date}:${ex.type}`;
-    if (exceptionSeen.has(key)) continue;
-    exceptionSeen.add(key);
-    exceptions.push(ex);
-  }
-
-  const recurringSource = remainder.trim() || exclusionBase.trim() || raw;
+  const recurringSource = remainder.trim() || raw;
   const text = recurringSource.toLowerCase();
   const clauses = splitClauses(recurringSource);
-  let rules: AvailabilityRule[] = [];
 
-  // If remainder is only leftover exception wording, skip recurring parse noise
+  let rules: AvailabilityRule[] = [];
+  const timeExclusions: TimeExclusion[] = [];
+  const excludedDaySet = new Set<DayOfWeek>();
+  const exclusionExceptions: ExceptionDate[] = [];
+  let lastAvailabilityDays: DayOfWeek[] | undefined;
+
   const hasRecurringSignal =
     recurringSource.trim().length > 0 &&
     !/^(but|and|though|except)\.?$/i.test(recurringSource.trim());
 
+  function absorbExclusionSegment(exclusionText: string, contextDays?: DayOfWeek[]) {
+    const parsed = parseExclusionSegment(exclusionText, now, contextDays);
+    for (const day of parsed.excludedDays) excludedDaySet.add(day);
+    exclusionExceptions.push(...parsed.exceptions);
+    timeExclusions.push(...parsed.timeExclusions);
+  }
+
   if (hasRecurringSignal) {
     for (const clause of clauses) {
-      const rule = parseClause(clause, raw);
-      if (rule) rules.push(rule);
+      const lunch = parseLunchExclusion(clause, lastAvailabilityDays);
+      if (lunch) {
+        timeExclusions.push(lunch);
+        continue;
+      }
+
+      // Peel inline "except …" / "not free …" from this clause only — never
+      // consume following sentences (those are separate clauses).
+      const { base, exclusionTexts } = splitBaseAndExclusions(clause);
+      const availabilityText = base.trim();
+
+      if (availabilityText) {
+        const rule = parseClause(availabilityText, raw);
+        if (rule) {
+          rules.push(rule);
+          const remembered = rememberAvailabilityDays(availabilityText, rule);
+          if (remembered) lastAvailabilityDays = remembered;
+        }
+      } else if (exclusionTexts.length === 0) {
+        // Whole clause may still be availability (no exclusion marker).
+        const rule = parseClause(clause, raw);
+        if (rule) {
+          rules.push(rule);
+          const remembered = rememberAvailabilityDays(clause, rule);
+          if (remembered) lastAvailabilityDays = remembered;
+        }
+      }
+
+      // Exclusions attach to the active (previous) availability scope.
+      for (const exclusionText of exclusionTexts) {
+        absorbExclusionSegment(exclusionText, lastAvailabilityDays);
+      }
     }
 
-    if (rules.length === 0) {
+    if (rules.length === 0 && timeExclusions.length === 0) {
       const fallback = parseClause(recurringSource, raw);
       if (fallback) rules.push(fallback);
     }
 
-    if (rules.length === 0) {
+    if (rules.length === 0 && timeExclusions.length === 0) {
       const range = extractTimeRange(text);
       if (range) {
         rules.push({
@@ -1233,32 +1533,54 @@ export function parseAvailabilityInput(
           end: tod(22),
           raw,
         });
-      } else if (exceptions.length === 0 && excludedDays.length === 0) {
-        rules.push(
-          {
-            kind: "between_times",
-            days: WEEKDAYS,
-            start: tod(17),
-            end: tod(22),
-            raw,
-          },
-          {
-            kind: "weekends_anytime",
-            days: WEEKENDS,
-            start: tod(10),
-            end: tod(22),
-            raw,
-          }
-        );
       }
     }
   }
 
-  // 3. Apply recurring day exclusions to the base schedule.
+  const excludedDays = ALL_DAYS.filter((d) => excludedDaySet.has(d));
+
+  const exceptionSeen = new Set<string>();
+  const exceptions: ExceptionDate[] = [];
+  for (const ex of [...exclusionExceptions, ...baseExceptions]) {
+    const key = `${ex.date}:${ex.type}`;
+    if (exceptionSeen.has(key)) continue;
+    exceptionSeen.add(key);
+    exceptions.push(ex);
+  }
+
+  // Fallback defaults only when nothing else was understood.
+  if (
+    rules.length === 0 &&
+    timeExclusions.length === 0 &&
+    exceptions.length === 0 &&
+    excludedDays.length === 0
+  ) {
+    rules.push(
+      {
+        kind: "between_times",
+        days: WEEKDAYS,
+        start: tod(17),
+        end: tod(22),
+        raw,
+      },
+      {
+        kind: "weekends_anytime",
+        days: WEEKENDS,
+        start: tod(10),
+        end: tod(22),
+        raw,
+      }
+    );
+  }
+
+  // Apply recurring day exclusions to the base schedule.
   rules = applyExcludedDays(rules, excludedDays);
 
-  // 4. Specific day rules override broader recurring rules (no overlapping days).
+  // Specific day rules override broader recurring rules (no overlapping days).
   rules = normalizeOverlappingRules(rules);
+
+  // Punch time-range exclusions into the resolved schedule (never as availability).
+  rules = applyTimeExclusions(rules, timeExclusions);
 
   const preferences: AvailabilityPreference[] = [];
   const preferredBut = extractPreferredFromBut(text);
@@ -1278,7 +1600,12 @@ export function parseAvailabilityInput(
       ? "medium"
       : "medium";
 
-  const confirmation = buildConfirmation(rules, exceptions, excludedDays);
+  const confirmation = buildConfirmation(
+    rules,
+    exceptions,
+    excludedDays,
+    timeExclusions
+  );
   return {
     rules,
     preferences,
