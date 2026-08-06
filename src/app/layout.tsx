@@ -8,6 +8,7 @@ import {
   Sedgwick_Ave,
   Sue_Ellen_Francisco,
 } from "next/font/google";
+import { SiteShell } from "@/components/SiteShell";
 import "./globals.css";
 
 const fraunces = Fraunces({
@@ -96,7 +97,9 @@ const fontVariables = [
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${fontVariables} h-full`}>
-      <body className="min-h-full antialiased">{children}</body>
+      <body className="min-h-full antialiased">
+        <SiteShell>{children}</SiteShell>
+      </body>
     </html>
   );
 }
