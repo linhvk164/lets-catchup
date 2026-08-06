@@ -22,6 +22,7 @@ import {
   ConfettiBurst,
   consumePostcardCelebrate,
 } from "@/components/ConfettiBurst";
+import { SiteHeader } from "@/components/SiteHeader";
 
 export function CatchUpInvitationClient() {
   const params = useParams<{ id: string }>();
@@ -192,6 +193,7 @@ export function CatchUpInvitationClient() {
 
   return (
     <div className="flex min-h-full flex-col">
+      <SiteHeader compact />
       {celebrate ? <ConfettiBurst active /> : null}
       <main className="mx-auto w-full max-w-[36rem] flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5 lg:max-w-4xl">
         <div className="animate-fade-rise text-center">
