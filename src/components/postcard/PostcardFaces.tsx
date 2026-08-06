@@ -245,7 +245,13 @@ export function PostcardBackContent({
 
   const recipients = catchUp.participants
     .filter((p) => !p.isCreator)
-    .filter((p) => p.name?.trim() && p.name.trim() !== "You");
+    .filter((p) => {
+      const name = p.name?.trim();
+      if (!name) return false;
+      // Hide draft placeholder "You"; keep real recipients named You (e.g. landing demo).
+      if (name === "You" && (!creatorName || creatorName === "You")) return false;
+      return true;
+    });
 
   // During create/preview with a single named person, treat them as sender only.
   // If somehow no isCreator flags, show non-first participants as recipients.
