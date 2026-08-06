@@ -1,18 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AvailabilityInterpretation } from "@/components/AvailabilityInterpretation";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { Button, Field, TextArea } from "@/components/ui";
 import { parseAvailabilityInput } from "@/lib/availability";
 import { detectTimezone, getTimezoneInfo } from "@/lib/timezone";
 import type { Participant, TimezoneInfo } from "@/lib/types";
 import { createParticipantId } from "@/hooks/useCatchUp";
-
-const EXAMPLES = [
-  "Evenings, not tomorrow",
-  "Weekends anytime",
-  "Weekdays after 6pm",
-];
 
 export type ParticipantDraft = {
   name: string;
@@ -134,33 +129,13 @@ export function ParticipantForm({
           onChange={(e) => setAvailability(e.target.value)}
           requiredMark
           error={submitted ? errors.availability : undefined}
+          rows={2}
         />
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              className="rounded-lg border border-ink/10 bg-white px-2.5 py-1 text-left text-xs text-ink-soft hover:bg-white/70"
-              onClick={() => setAvailability(ex)}
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
         {parsed && parsed.debugLines.length > 0 ? (
-          <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5">
-            <p className="text-sm font-medium text-ink">{parsed.summary}</p>
-            <ul className="mt-1.5 space-y-1">
-              {parsed.debugLines.map((line) => (
-                <li key={line} className="text-sm text-ink">
-                  <span className="text-ocean" aria-hidden>
-                    ✓{" "}
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <AvailabilityInterpretation
+            parsed={parsed}
+            onChangeAvailability={setAvailability}
+          />
         ) : null}
       </div>
 

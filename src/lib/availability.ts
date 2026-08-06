@@ -51,8 +51,18 @@ const DAY_SHORT: Record<DayOfWeek, string> = {
   sunday: "Sun",
 };
 
+const DAY_PLURAL: Record<DayOfWeek, string> = {
+  monday: "Mondays",
+  tuesday: "Tuesdays",
+  wednesday: "Wednesdays",
+  thursday: "Thursdays",
+  friday: "Fridays",
+  saturday: "Saturdays",
+  sunday: "Sundays",
+};
+
 const EXCLUSION_MARKER =
-  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|unavailable(?:\s+on)?|not\s+free|not\s+available)\b/i;
+  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|unavailable(?:\s+on)?|not\s+free|not\s+available|can'?t|cannot|busy|no|not)\b/i;
 
 /** Recurring time-of-day hole punched out of availability (not a calendar date). */
 interface TimeExclusion {
@@ -62,12 +72,39 @@ interface TimeExclusion {
   label: string;
 }
 
+/** One clock window; omit when the user named days but no times. */
+export interface StructuredTimeRange {
+  start: TimeOfDay;
+  end: TimeOfDay;
+  label?: string;
+}
+
+/** Day-scoped availability window (parser output; scheduler uses `rules`). */
+export interface StructuredWindow {
+  days: DayOfWeek[];
+  timeRanges: StructuredTimeRange[];
+}
+
+/**
+ * Structured interpretation separate from scheduling rules.
+ * Flat `days` / `timeRanges` mirror a single window; multi-clause notes use `windows`.
+ */
+export interface StructuredAvailability {
+  days: DayOfWeek[];
+  timeRanges: StructuredTimeRange[];
+  exceptions: ExceptionDate[];
+  excludedDays: DayOfWeek[];
+  windows: StructuredWindow[];
+}
+
 export interface ParsedAvailability {
   rules: AvailabilityRule[];
   preferences: AvailabilityPreference[];
   flexibility: FlexibilityLevel;
   /** Date-specific overrides extracted from the same availability text. */
   exceptions: ExceptionDate[];
+  /** Structured parse result (confirmation is a human-readable view of this). */
+  structured: StructuredAvailability;
   /** Short confirmation reflecting exact parsed rules. */
   summary: string;
   /** Extra trust line. */
@@ -75,6 +112,10 @@ export interface ParsedAvailability {
   /** Friendly breakdown of what was parsed. */
   debugLines: string[];
 }
+
+/** Only assumed window — when the user says "anytime". */
+export const ANYTIME_START: TimeOfDay = { hour: 6, minute: 0 };
+export const ANYTIME_END: TimeOfDay = { hour: 0, minute: 0 };
 
 function tod(hour: number, minute = 0): TimeOfDay {
   return { hour, minute };
@@ -466,8 +507,96 @@ function formatDayGroup(days?: DayOfWeek[]): string {
   return ranges.join(", ");
 }
 
+/** Recurring unavailability: "Sundays", "Mondays, Thursdays", "Weekdays". */
+function formatExcludedDaysDebug(days: DayOfWeek[]): string {
+  if (days.length === 5 && WEEKDAYS.every((d) => days.includes(d))) {
+    return "Weekdays";
+  }
+  if (days.length === 2 && WEEKENDS.every((d) => days.includes(d))) {
+    return "Weekends";
+  }
+  const sorted = ALL_DAYS.filter((d) => days.includes(d));
+  if (sorted.length === 1) return DAY_PLURAL[sorted[0]];
+  return sorted.map((d) => DAY_PLURAL[d]).join(", ");
+}
+
+function capitalizeWord(word: string): string {
+  if (!word) return word;
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+/**
+ * Confirmation label for a date exception.
+ * Relative phrases keep their spoken form; only bare calendar dates become "August 9".
+ */
+function friendlyExceptionLabel(ex: ExceptionDate): string {
+  const label = ex.label.toLowerCase();
+
+  if (/\btomorrow\b/.test(label)) return "Tomorrow";
+  if (/\btonight\b/.test(label)) return "Tonight";
+  if (/\btoday\b/.test(label)) return "Today";
+  if (/\bthis\s+weekend\b/.test(label)) return "This weekend";
+  if (/\bnext\s+weekend\b/.test(label)) return "Next weekend";
+  if (/\bnext\s+week\b/.test(label)) return "Next week";
+  if (/\bthis\s+week\b/.test(label)) return "This week";
+  if (/\bnext\s+month\b/.test(label)) return "Next month";
+
+  const thisDay = label.match(
+    /\bthis\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/
+  );
+  if (thisDay) return `This ${capitalizeWord(thisDay[1])}`;
+
+  const nextDay = label.match(
+    /\bnext\s+(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/
+  );
+  if (nextDay) return `Next ${capitalizeWord(nextDay[1])}`;
+
+  return formatNiceDate(ex.date);
+}
+
+function formatExceptionDebug(ex: ExceptionDate): string {
+  const friendly = friendlyExceptionLabel(ex);
+  if (ex.type === "free_all_day") return `Available: ${friendly}`;
+  return `Not available: ${friendly}`;
+}
+
+function formatExceptionsDebug(exceptions: ExceptionDate[]): string[] {
+  const lines: string[] = [];
+  const seen = new Set<string>();
+  for (const ex of exceptions) {
+    const line = formatExceptionDebug(ex);
+    if (seen.has(line)) continue;
+    seen.add(line);
+    lines.push(line);
+  }
+  return lines;
+}
+
+function formatTimeExclusionDebug(ex: TimeExclusion): string {
+  return `Not available: ${formatDayGroup(ex.days)}, ${formatClock(ex.start)} – ${formatClock(ex.end)}`;
+}
+
+function isAnytimeWindow(rule: AvailabilityRule): boolean {
+  if (rule.label === "Anytime") return true;
+  if (!rule.start || !rule.end) return false;
+  return (
+    rule.start.hour === ANYTIME_START.hour &&
+    rule.start.minute === ANYTIME_START.minute &&
+    rule.end.hour === ANYTIME_END.hour &&
+    rule.end.minute === ANYTIME_END.minute
+  );
+}
+
+function formatAnytimeRange(start?: TimeOfDay, end?: TimeOfDay): string {
+  const s = start ?? ANYTIME_START;
+  const e = end ?? ANYTIME_END;
+  return `Anytime (${formatClock(s)} – ${formatClock(e)})`;
+}
+
 function formatRuleDebug(rule: AvailabilityRule): string {
   const days = formatDayGroup(rule.days);
+  const hasDays = Boolean(rule.days?.length);
+  const everyDay = !hasDays || rule.days!.length === 7;
   const range =
     rule.start && rule.end && !isFullDayTimes(rule.start, rule.end)
       ? `${formatClock(rule.start)} – ${formatClock(rule.end)}`
@@ -486,9 +615,21 @@ function formatRuleDebug(rule: AvailabilityRule): string {
     return `${days}: Evenings (${range})`;
   }
 
-  if (isFullDayRule(rule) || isFullDayTimes(rule.start, rule.end)) {
-    return `${days}: Anytime`;
+  // Day-only: user named days but no times — never invent a window.
+  if (!rule.start && !rule.end) {
+    return days;
   }
+
+  if (isAnytimeWindow(rule)) {
+    const anytime = formatAnytimeRange(rule.start, rule.end);
+    return everyDay ? anytime : `${days}: ${anytime}`;
+  }
+
+  if (isFullDayTimes(rule.start, rule.end)) {
+    const anytime = formatAnytimeRange(ANYTIME_START, ANYTIME_END);
+    return everyDay ? anytime : `${days}: ${anytime}`;
+  }
+
   // "Before 11 PM" — midnight start with an explicit end from "before <time>"
   if (
     rule.label === "Before" &&
@@ -512,16 +653,6 @@ function formatNiceDate(isoDate: string): string {
   const dt = DateTime.fromISO(isoDate);
   if (!dt.isValid) return isoDate;
   return dt.toFormat("LLLL d");
-}
-
-function formatExceptionDebug(ex: ExceptionDate): string {
-  const nice = formatNiceDate(ex.date);
-  if (ex.type === "free_all_day") return `Available all day: ${nice}`;
-  return `Not available: ${nice}`;
-}
-
-function formatTimeExclusionDebug(ex: TimeExclusion): string {
-  return `Not available: ${formatDayGroup(ex.days)}, ${formatClock(ex.start)} – ${formatClock(ex.end)}`;
 }
 
 function sameDaySet(a?: DayOfWeek[], b?: DayOfWeek[]): boolean {
@@ -612,15 +743,126 @@ function buildConfirmation(
     ...formatRulesDebug(rules),
     ...timeExclusions.map(formatTimeExclusionDebug),
     ...(excludedDays.length > 0
-      ? [`Not available: ${formatDayGroup(excludedDays)}`]
+      ? [`Not available: ${formatExcludedDaysDebug(excludedDays)}`]
       : []),
-    ...exceptions.map(formatExceptionDebug),
+    ...formatExceptionsDebug(exceptions),
   ];
   return {
     summary: "Got it!",
     detail: "",
     debugLines,
   };
+}
+
+function ruleToTimeRanges(rule: AvailabilityRule): StructuredTimeRange[] {
+  if (!rule.start || !rule.end) return [];
+  return [
+    {
+      start: { ...rule.start },
+      end: { ...rule.end },
+      label: rule.label,
+    },
+  ];
+}
+
+/** Build structured parser output from resolved rules (scheduler still uses `rules`). */
+export function buildStructuredAvailability(
+  rules: AvailabilityRule[],
+  exceptions: ExceptionDate[] = [],
+  excludedDays: DayOfWeek[] = []
+): StructuredAvailability {
+  const windows: StructuredWindow[] = rules.map((rule) => ({
+    days: rule.days?.length ? [...rule.days] : [...ALL_DAYS],
+    timeRanges: ruleToTimeRanges(rule),
+  }));
+
+  const daySet = new Set<DayOfWeek>();
+  const timeRanges: StructuredTimeRange[] = [];
+  for (const w of windows) {
+    for (const d of w.days) daySet.add(d);
+    for (const tr of w.timeRanges) timeRanges.push(tr);
+  }
+
+  return {
+    days: ALL_DAYS.filter((d) => daySet.has(d)),
+    timeRanges,
+    exceptions: [...exceptions],
+    excludedDays: [...excludedDays],
+    windows,
+  };
+}
+
+function formatDayPhrase(days: DayOfWeek[]): string {
+  if (days.length === 5 && WEEKDAYS.every((d) => days.includes(d))) {
+    return "Weekdays";
+  }
+  if (days.length === 2 && WEEKENDS.every((d) => days.includes(d))) {
+    return "Weekends";
+  }
+  if (days.length === 7) return "Every day";
+  return days.map((d) => DAY_SHORT[d]).join(", ");
+}
+
+function formatTimeRangePhrase(tr: StructuredTimeRange): string {
+  if (tr.label === "After work") return "after work";
+  if (tr.label === "Before work") return "before work";
+  if (tr.label === "During work hours") return "during work hours";
+  if (tr.label === "Evenings") return "evenings";
+  if (tr.label === "Anytime") return "anytime";
+  if (
+    tr.start.hour === ANYTIME_START.hour &&
+    tr.start.minute === ANYTIME_START.minute &&
+    tr.end.hour === ANYTIME_END.hour &&
+    tr.end.minute === ANYTIME_END.minute
+  ) {
+    return "anytime";
+  }
+  return `${formatClock(tr.start)}–${formatClock(tr.end)}`;
+}
+
+/** Serialize structured availability back to natural-language text for the form. */
+export function serializeStructuredAvailability(
+  structured: StructuredAvailability
+): string {
+  const parts: string[] = [];
+
+  for (const window of structured.windows) {
+    if (window.days.length === 0) continue;
+    const dayPhrase = formatDayPhrase(window.days);
+    if (window.timeRanges.length === 0) {
+      parts.push(dayPhrase);
+      continue;
+    }
+    const timePhrase = window.timeRanges
+      .map(formatTimeRangePhrase)
+      .join(", ");
+    if (
+      window.timeRanges.length === 1 &&
+      window.timeRanges[0]?.label === "Anytime" &&
+      window.days.length === 7
+    ) {
+      parts.push("Anytime");
+      continue;
+    }
+    parts.push(`${dayPhrase} ${timePhrase}`);
+  }
+
+  if (structured.excludedDays.length > 0) {
+    parts.push(
+      `No ${structured.excludedDays.map((d) => DAY_SHORT[d]).join(", ")}`
+    );
+  }
+
+  for (const ex of structured.exceptions) {
+    const label = ex.label.trim() || formatNiceDate(ex.date);
+    if (ex.type === "unavailable") {
+      parts.push(`Not ${label}`);
+    } else {
+      parts.push(`Free ${label}`);
+    }
+  }
+
+  return parts.join(". ").replace(/\s+/g, " ").trim();
 }
 
 function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
@@ -703,7 +945,7 @@ function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
     };
   }
 
-  // 5. Anytime / all day (only when said) — scoped to the days in this clause
+  // 5. Anytime / all day (only when said) — only case that assumes a default window
   if (anytime) {
     const scopedDays =
       days ??
@@ -719,8 +961,8 @@ function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
           : "all_day"
         : "fully_flexible",
       days: scopedDays,
-      start: tod(0),
-      end: tod(0),
+      start: { ...ANYTIME_START },
+      end: { ...ANYTIME_END },
       label: "Anytime",
       raw,
     };
@@ -777,21 +1019,16 @@ function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
     };
   }
 
-  // Day-only free / usually free (e.g. "usually free Wednesdays")
-  if (days && (flexible || /\bfree\b|\bavailable\b/.test(text))) {
+  // Day-only: named days / weekdays / weekends with no times — never invent a window.
+  if (days) {
     return {
-      kind: "specific_days",
+      kind:
+        hasWeekends(text) && !hasWeekdays(text)
+          ? "weekends_anytime"
+          : "specific_days",
       days,
-      start: tod(0),
-      end: tod(0),
-      label: "Anytime",
       raw,
     };
-  }
-
-  // Day-only mention without times (e.g. leftover "on weekends") — skip
-  if (days && (hasWeekdays(text) || hasWeekends(text)) && text.length < 24) {
-    return null;
   }
 
   return null;
@@ -895,12 +1132,25 @@ const MONTH_PATTERN =
 const WEEKDAY_PATTERN =
   "mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:rs|rsday|r)?|fri(?:day)?|sat(?:urday)?|sun(?:day)?";
 
+function resolveDayToken(token: string): DayOfWeek | null {
+  const t = token.toLowerCase();
+  if (DAY_ALIASES[t]) return DAY_ALIASES[t];
+  if (t.startsWith("mon")) return "monday";
+  if (t.startsWith("tue")) return "tuesday";
+  if (t.startsWith("wed")) return "wednesday";
+  if (t.startsWith("thu")) return "thursday";
+  if (t.startsWith("fri")) return "friday";
+  if (t.startsWith("sat")) return "saturday";
+  if (t.startsWith("sun")) return "sunday";
+  return null;
+}
+
 function resolveWeekdayOccurrence(
   weekdayToken: string,
   which: "this" | "next",
   now: DateTime
 ): string | null {
-  const day = DAY_ALIASES[weekdayToken.toLowerCase()];
+  const day = resolveDayToken(weekdayToken);
   if (!day) return null;
   const luxonWeekday = (
     {
@@ -923,6 +1173,323 @@ function resolveWeekdayOccurrence(
   const target =
     which === "this" ? thisOccurrence : thisOccurrence.plus({ weeks: 1 });
   return target.toISODate();
+}
+
+/** Monday–Sunday of the calendar week after the current week (Luxon weeks start Monday). */
+function resolveNextWeekDates(now: DateTime): string[] {
+  const start = now.startOf("week").plus({ weeks: 1 });
+  const dates: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const iso = start.plus({ days: i }).toISODate();
+    if (iso) dates.push(iso);
+  }
+  return dates;
+}
+
+/** Upcoming Saturday + Sunday for "this weekend". */
+function resolveThisWeekendDates(now: DateTime): string[] {
+  let saturday = now.startOf("week").plus({ days: 5 });
+  const sunday = saturday.plus({ days: 1 });
+  // If we're past this weekend, roll to next weekend.
+  if (now.startOf("day") > sunday.startOf("day")) {
+    saturday = saturday.plus({ weeks: 1 });
+  }
+  const sat = saturday.toISODate();
+  const sun = saturday.plus({ days: 1 }).toISODate();
+  return [sat, sun].filter((d): d is string => Boolean(d));
+}
+
+function resolveNextWeekendDates(now: DateTime): string[] {
+  const thisWeekend = resolveThisWeekendDates(now);
+  if (thisWeekend.length < 2) return [];
+  const sat = DateTime.fromISO(thisWeekend[0]).plus({ weeks: 1 }).toISODate();
+  const sun = DateTime.fromISO(thisWeekend[1]).plus({ weeks: 1 }).toISODate();
+  return [sat, sun].filter((d): d is string => Boolean(d));
+}
+
+/**
+ * Pull date-specific / relative overrides out of availability text.
+ * Bare weekday names (e.g. "not Sunday") are NOT converted to dates —
+ * those stay as recurring exclusions in the remainder.
+ */
+export function extractExceptionsFromText(
+  input: string,
+  now = DateTime.local()
+): { exceptions: ExceptionDate[]; remainder: string } {
+  let remainder = input;
+  const exceptions: ExceptionDate[] = [];
+  const seen = new Set<string>();
+
+  function push(ex: ExceptionDate) {
+    const key = `${ex.date}:${ex.type}:${ex.label}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    exceptions.push(ex);
+  }
+
+  function pushDates(
+    dates: string[],
+    type: ExceptionDate["type"],
+    label: string
+  ) {
+    for (const date of dates) {
+      push({ date, type, label });
+    }
+  }
+
+  function removeSpan(start: number, end: number) {
+    remainder =
+      remainder.slice(0, start).trimEnd() +
+      " " +
+      remainder.slice(end).trimStart();
+    remainder = remainder
+      .replace(/\s{2,}/g, " ")
+      .replace(/\s+([.,;])/g, "$1")
+      .trim();
+  }
+
+  let guard = 0;
+  while (guard++ < 20) {
+    const lower = remainder.toLowerCase();
+    let matched = false;
+
+    // busy / not free / not available tomorrow
+    {
+      const m = lower.match(
+        /\b(?:but\s+)?(?:i'?m\s+)?(?:not\s+available|unavailable|can't|cannot|busy|not\s+free|not)\s+(?:on\s+)?tomorrow\b|\bnot\s+tomorrow\b|\bunavailable\s+tomorrow\b|\bbusy\s+tomorrow\b/
+      );
+      if (m && m.index !== undefined) {
+        const date = now.plus({ days: 1 }).toISODate();
+        if (date) {
+          push({ date, type: "unavailable", label: m[0].trim() });
+        }
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // free / available tomorrow
+    {
+      const m = lower.match(
+        /\b(?:free|available)\s+(?:all\s+day\s+)?(?:on\s+)?tomorrow\b/
+      );
+      if (m && m.index !== undefined) {
+        const date = now.plus({ days: 1 }).toISODate();
+        if (date) {
+          push({ date, type: "free_all_day", label: m[0].trim() });
+        }
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // today / tonight unavailability
+    {
+      const m = lower.match(
+        /\b(?:but\s+)?(?:i'?m\s+)?(?:not\s+available|unavailable|can't|cannot|busy|not\s+free|not)\s+(?:on\s+)?(today|tonight)\b|\bbusy\s+(today|tonight)\b/
+      );
+      if (m && m.index !== undefined) {
+        const date = now.toISODate();
+        if (date) {
+          push({ date, type: "unavailable", label: m[0].trim() });
+        }
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // not this Sunday / not next Sunday (require this|next — never bare weekday)
+    {
+      const m = lower.match(
+        new RegExp(
+          `\\b(?:but\\s+)?(?:i'?m\\s+)?(?:not\\s+available|unavailable|can't|cannot|busy|not\\s+free|not|except(?:\\s+for)?)\\s+(this|next)\\s+(${WEEKDAY_PATTERN})s?\\b`
+        )
+      );
+      if (m && m.index !== undefined) {
+        const which = m[1].toLowerCase() as "this" | "next";
+        const date = resolveWeekdayOccurrence(m[2], which, now);
+        if (date) {
+          push({ date, type: "unavailable", label: m[0].trim() });
+        }
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // except this Saturday (availability marker already peeled elsewhere; also catch here)
+    {
+      const m = lower.match(
+        new RegExp(`\\b(this|next)\\s+(${WEEKDAY_PATTERN})s?\\b`)
+      );
+      // Only treat as date when preceded by exclusion intent nearby
+      if (m && m.index !== undefined) {
+        const before = lower.slice(Math.max(0, m.index - 24), m.index);
+        if (
+          /\b(?:except(?:\s+for)?|excluding|but\s+not|unavailable|not\s+free|not\s+available|busy|can't|cannot|not)\s*$/.test(
+            before
+          ) ||
+          /\bexcept(?:\s+for)?\s+$/.test(before)
+        ) {
+          const which = m[1].toLowerCase() as "this" | "next";
+          const date = resolveWeekdayOccurrence(m[2], which, now);
+          if (date) {
+            // Include preceding exclusion word in label when present
+            const pref = before.match(
+              /\b(?:except(?:\s+for)?|excluding|but\s+not|unavailable|not\s+free|not\s+available|busy|can't|cannot|not)\s*$/
+            );
+            const start = pref
+              ? m.index - (pref[0].length)
+              : m.index;
+            const label = remainder.slice(start, m.index + m[0].length).trim();
+            push({ date, type: "unavailable", label });
+            removeSpan(start, m.index + m[0].length);
+            matched = true;
+          }
+        }
+      }
+    }
+    if (matched) continue;
+
+    // free / available next Wednesday | free this Friday
+    {
+      const m = lower.match(
+        new RegExp(
+          `\\b(?:free|available)\\s+(?:all\\s+day\\s+)?(?:on\\s+)?(this|next)\\s+(${WEEKDAY_PATTERN})s?\\b`
+        )
+      );
+      if (m && m.index !== undefined) {
+        const which = m[1].toLowerCase() as "this" | "next";
+        const date = resolveWeekdayOccurrence(m[2], which, now);
+        if (date) {
+          push({ date, type: "free_all_day", label: m[0].trim() });
+        }
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // not free next week / busy next week / not available next week
+    {
+      const m = lower.match(
+        /\b(?:but\s+)?(?:i'?m\s+)?(?:not\s+available|unavailable|can't|cannot|busy|not\s+free|not)\s+(?:for\s+)?(?:the\s+)?next\s+week\b|\bnot\s+free\s+next\s+week\b/
+      );
+      if (m && m.index !== undefined) {
+        pushDates(resolveNextWeekDates(now), "unavailable", m[0].trim());
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // free / available next week
+    {
+      const m = lower.match(
+        /\b(?:free|available)\s+(?:all\s+(?:week|day)\s+)?(?:for\s+)?(?:the\s+)?next\s+week\b/
+      );
+      if (m && m.index !== undefined) {
+        pushDates(resolveNextWeekDates(now), "free_all_day", m[0].trim());
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // free this weekend / available this weekend
+    {
+      const m = lower.match(
+        /\b(?:free|available)\s+(?:all\s+day\s+)?(?:for\s+)?(?:the\s+)?this\s+weekend\b|\bfree\s+this\s+weekend\b/
+      );
+      if (m && m.index !== undefined) {
+        pushDates(resolveThisWeekendDates(now), "free_all_day", m[0].trim());
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // busy / not free this weekend
+    {
+      const m = lower.match(
+        /\b(?:but\s+)?(?:i'?m\s+)?(?:not\s+available|unavailable|can't|cannot|busy|not\s+free|not)\s+(?:for\s+)?(?:the\s+)?this\s+weekend\b|\bbusy\s+this\s+weekend\b/
+      );
+      if (m && m.index !== undefined) {
+        pushDates(resolveThisWeekendDates(now), "unavailable", m[0].trim());
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // next weekend free/busy
+    {
+      const m = lower.match(
+        /\b(?:free|available)\s+(?:for\s+)?(?:the\s+)?next\s+weekend\b/
+      );
+      if (m && m.index !== undefined) {
+        pushDates(resolveNextWeekendDates(now), "free_all_day", m[0].trim());
+        removeSpan(m.index, m.index + m[0].length);
+        matched = true;
+      }
+    }
+    if (matched) continue;
+
+    // unavailable / except / not available + absolute date
+    {
+      const prefix =
+        /\b(?:but\s+)?(?:i'?m\s+)?(?:unavailable|not\s+available|can't|cannot|busy|except(?:\s+for)?)\b/i;
+      const pref = lower.match(prefix);
+      if (pref && pref.index !== undefined) {
+        const after = remainder.slice(pref.index + pref[0].length);
+        const abs = parseAbsoluteDate(after, now.year);
+        if (abs) {
+          const start = pref.index;
+          const end = pref.index + pref[0].length + abs.matchEnd;
+          const label = remainder.slice(start, end).trim();
+          push({ date: abs.date, type: "unavailable", label });
+          removeSpan(start, end);
+          matched = true;
+        }
+      }
+    }
+    if (matched) continue;
+
+    // free all day August 15 / available August 15
+    {
+      const prefix = /\b(?:free|available)(?:\s+all\s+day)?(?:\s+on)?\b/i;
+      const pref = lower.match(prefix);
+      if (pref && pref.index !== undefined) {
+        const after = remainder.slice(pref.index + pref[0].length);
+        const abs = parseAbsoluteDate(after, now.year);
+        if (abs) {
+          const start = pref.index;
+          const end = pref.index + pref[0].length + abs.matchEnd;
+          const label = remainder.slice(start, end).trim();
+          push({ date: abs.date, type: "free_all_day", label });
+          removeSpan(start, end);
+          matched = true;
+        }
+      }
+    }
+    if (matched) continue;
+
+    // Bare absolute date with except already handled; lone "August 20" in except clause
+    break;
+  }
+
+  remainder = remainder
+    .replace(/\.{2,}/g, ".")
+    .replace(/\b(but|and|though)\s*[.,;]?\s*$/i, "")
+    .replace(/^\s*(but|and|though)\b[,.]?\s*/i, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/\s+,/g, ",")
+    .trim();
+
+  return { exceptions, remainder };
 }
 
 function parseAbsoluteDate(
@@ -1276,166 +1843,6 @@ function applyExcludedDays(
   return next;
 }
 
-/**
- * Pull date-specific overrides out of availability text, returning cleaned remainder
- * for recurring rule parsing. Rule-based only (no LLM).
- */
-export function extractExceptionsFromText(
-  input: string,
-  now = DateTime.local()
-): { exceptions: ExceptionDate[]; remainder: string } {
-  let remainder = input;
-  const exceptions: ExceptionDate[] = [];
-  const seen = new Set<string>();
-
-  function push(ex: ExceptionDate) {
-    const key = `${ex.date}:${ex.type}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    exceptions.push(ex);
-  }
-
-  function removeSpan(start: number, end: number) {
-    remainder =
-      remainder.slice(0, start).trimEnd() +
-      " " +
-      remainder.slice(end).trimStart();
-    remainder = remainder.replace(/\s{2,}/g, " ").replace(/\s+([.,;])/g, "$1").trim();
-  }
-
-  // Work on a mutable copy while matching against current remainder repeatedly
-  let guard = 0;
-  while (guard++ < 20) {
-    const lower = remainder.toLowerCase();
-    let matched = false;
-
-    // not tomorrow / unavailable tomorrow / busy tomorrow
-    {
-      const m = lower.match(
-        /\b(?:but\s+)?(?:i'?m\s+)?(?:not\s+available|unavailable|can't|cannot|busy|not)\s+(?:on\s+)?tomorrow\b|\bnot\s+tomorrow\b|\bunavailable\s+tomorrow\b/
-      );
-      if (m && m.index !== undefined) {
-        const date = now.plus({ days: 1 }).toISODate();
-        if (date) {
-          push({
-            date,
-            type: "unavailable",
-            label: m[0].trim(),
-          });
-        }
-        removeSpan(m.index, m.index + m[0].length);
-        matched = true;
-      }
-    }
-    if (matched) continue;
-
-    // free / available tomorrow (all day)
-    {
-      const m = lower.match(
-        /\b(?:free|available)\s+(?:all\s+day\s+)?(?:on\s+)?tomorrow\b/
-      );
-      if (m && m.index !== undefined) {
-        const date = now.plus({ days: 1 }).toISODate();
-        if (date) {
-          push({ date, type: "free_all_day", label: m[0].trim() });
-        }
-        removeSpan(m.index, m.index + m[0].length);
-        matched = true;
-      }
-    }
-    if (matched) continue;
-
-    // but not this Wednesday / not this Friday
-    {
-      const m = lower.match(
-        new RegExp(
-          `\\b(?:but\\s+)?not\\s+(?:this\\s+)?(${WEEKDAY_PATTERN})\\b`
-        )
-      );
-      if (m && m.index !== undefined) {
-        const date = resolveWeekdayOccurrence(m[1], "this", now);
-        if (date) {
-          push({ date, type: "unavailable", label: m[0].trim() });
-        }
-        removeSpan(m.index, m.index + m[0].length);
-        matched = true;
-      }
-    }
-    if (matched) continue;
-
-    // next Wednesday works / free next Wednesday
-    {
-      const m = lower.match(
-        new RegExp(
-          `\\b(?:free|available)?\\s*next\\s+(${WEEKDAY_PATTERN})(?:\\s+works)?\\b`
-        )
-      );
-      if (m && m.index !== undefined) {
-        const date = resolveWeekdayOccurrence(m[1], "next", now);
-        if (date) {
-          push({ date, type: "free_all_day", label: m[0].trim() });
-        }
-        removeSpan(m.index, m.index + m[0].length);
-        matched = true;
-      }
-    }
-    if (matched) continue;
-
-    // unavailable / except / not available + absolute date
-    {
-      const prefix =
-        /\b(?:but\s+)?(?:i'?m\s+)?(?:unavailable|not\s+available|can't|cannot|busy|except(?:\s+for)?)\b/i;
-      const pref = lower.match(prefix);
-      if (pref && pref.index !== undefined) {
-        const after = remainder.slice(pref.index + pref[0].length);
-        const abs = parseAbsoluteDate(after, now.year);
-        if (abs) {
-          const start = pref.index;
-          const end = pref.index + pref[0].length + abs.matchEnd;
-          const label = remainder.slice(start, end).trim();
-          push({ date: abs.date, type: "unavailable", label });
-          removeSpan(start, end);
-          matched = true;
-        }
-      }
-    }
-    if (matched) continue;
-
-    // free all day August 15 / available August 15
-    {
-      const prefix =
-        /\b(?:free|available)(?:\s+all\s+day)?(?:\s+on)?\b/i;
-      const pref = lower.match(prefix);
-      if (pref && pref.index !== undefined) {
-        const after = remainder.slice(pref.index + pref[0].length);
-        const abs = parseAbsoluteDate(after, now.year);
-        if (abs) {
-          const start = pref.index;
-          const end = pref.index + pref[0].length + abs.matchEnd;
-          const label = remainder.slice(start, end).trim();
-          push({ date: abs.date, type: "free_all_day", label });
-          removeSpan(start, end);
-          matched = true;
-        }
-      }
-    }
-    if (matched) continue;
-
-    break;
-  }
-
-  // Cleanup leftover conjunctions
-  remainder = remainder
-    .replace(/\.{2,}/g, ".")
-    .replace(/\b(but|and|though)\s*[.,;]?\s*$/i, "")
-    .replace(/^\s*(but|and|though)\b[,.]?\s*/i, "")
-    .replace(/\s{2,}/g, " ")
-    .replace(/\s+,/g, ",")
-    .trim();
-
-  return { exceptions, remainder };
-}
-
 function rememberAvailabilityDays(
   clause: string,
   rule: AvailabilityRule
@@ -1467,6 +1874,7 @@ export function parseAvailabilityInput(
       preferences: [],
       flexibility: "low",
       exceptions: [],
+      structured: buildStructuredAvailability(rules, []),
       summary: confirmation.summary,
       detail: "",
       debugLines: confirmation.debugLines,
@@ -1562,8 +1970,9 @@ export function parseAvailabilityInput(
       ) {
         rules.push({
           kind: "fully_flexible",
-          start: tod(0),
-          end: tod(0),
+          start: { ...ANYTIME_START },
+          end: { ...ANYTIME_END },
+          label: "Anytime",
           raw,
         });
       } else if (hasFlexiblePhrase(text)) {
@@ -1646,11 +2055,17 @@ export function parseAvailabilityInput(
     excludedDays,
     timeExclusions
   );
+  const structured = buildStructuredAvailability(
+    rules,
+    exceptions,
+    excludedDays
+  );
   return {
     rules,
     preferences,
     flexibility,
     exceptions,
+    structured,
     ...confirmation,
   };
 }
@@ -1707,12 +2122,13 @@ export function hourInWindow(
   return m >= s && m < e;
 }
 
+/**
+ * True when the rule covers a full local calendar day for scheduling.
+ * Day-only rules (no times) schedule as full day; "Anytime" uses 6 AM–12 AM.
+ */
 export function isFullDayRule(rule: AvailabilityRule): boolean {
-  return (
-    rule.kind === "fully_flexible" ||
-    rule.kind === "anytime" ||
-    isFullDayTimes(rule.start, rule.end)
-  );
+  if (!rule.start && !rule.end) return true;
+  return isFullDayTimes(rule.start, rule.end);
 }
 
 export function ruleKindLabel(kind: AvailabilityKind): string {

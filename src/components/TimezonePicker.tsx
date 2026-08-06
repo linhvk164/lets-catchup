@@ -90,12 +90,12 @@ export function TimezonePicker({
       </div>
 
       <div
-        className={`rounded-xl border bg-white px-3.5 py-2 ${
+        className={`rounded-xl border bg-white/70 px-4 py-3 ${
           error ? "border-stamp/60" : "border-ink/10"
         }`}
       >
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-          <p className="min-w-0 text-sm font-medium text-ink">
+          <p className="min-w-0 text-base text-ink">
             {display.primary}
           </p>
           <p className="min-w-0 text-xs text-ink-soft sm:shrink-0 sm:text-right">
@@ -140,7 +140,7 @@ export function TimezonePicker({
                           setEditing(false);
                         }}
                       >
-                        <span className="text-sm font-medium text-ink">{row.primary}</span>
+                        <span className="text-base text-ink">{row.primary}</span>
                         <span className="text-xs text-ink-soft">
                           {row.secondary}
                           <span className="mx-1.5 text-ink/20">·</span>

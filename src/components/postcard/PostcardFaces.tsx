@@ -102,7 +102,7 @@ function AvailabilitySection({
         <h3 className="font-display text-xl text-ink sm:text-2xl">
           {dateLabel}
         </h3>
-        <ul className="space-y-2 border-t border-ink/8 pt-3">
+        <ul className="space-y-2">
           {places.map((place) => (
             <li
               key={`${place.participantId}-${place.hour}-${place.cityLabel}`}

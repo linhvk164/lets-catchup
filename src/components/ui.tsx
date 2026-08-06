@@ -119,7 +119,7 @@ export function TextArea({
       </div>
       <textarea
         id={fieldId}
-        className={`min-h-20 w-full resize-y rounded-xl border bg-white/70 px-4 py-2.5 text-base text-ink outline-none ring-ocean/30 placeholder:text-ink-soft/50 focus:border-ocean/40 focus:ring-2 ${
+        className={`min-h-14 w-full resize-y rounded-xl border bg-white/70 px-4 py-2.5 text-base text-ink outline-none ring-ocean/30 placeholder:text-ink-soft/50 focus:border-ocean/40 focus:ring-2 ${
           error ? "border-stamp/60" : "border-ink/10"
         } ${className}`}
         {...props}

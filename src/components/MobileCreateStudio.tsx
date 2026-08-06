@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { AvailabilityInterpretation } from "@/components/AvailabilityInterpretation";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { PostcardPreviewModal } from "@/components/PostcardPreviewModal";
 import { TimezonePicker } from "@/components/TimezonePicker";
@@ -16,12 +17,6 @@ import {
 import { encodeCatchUp } from "@/lib/storage";
 import type { ParsedAvailability } from "@/lib/availability";
 import type { CatchUp, PostcardPhoto, TimezoneInfo } from "@/lib/types";
-
-const EXAMPLES = [
-  "Weekdays 10am–5pm",
-  "Evenings, not tomorrow",
-  "Weekends anytime",
-];
 
 export type CreateFlowStep = 1 | 2 | 3;
 
@@ -243,7 +238,8 @@ export function MobileCreateStudio({
                 value={fields.message}
                 onChange={(e) => fields.setMessage(e.target.value)}
                 hint="Optional note on the back of the postcard"
-                rows={3}
+                rows={1}
+                className="!min-h-0 resize-none py-3"
                 style={liveFontStyle}
                 labelAction={
                   <FontCycleControl
@@ -273,36 +269,13 @@ export function MobileCreateStudio({
                   onChange={(e) => fields.setAvailability(e.target.value)}
                   requiredMark
                   error={submitted ? errors.availability : undefined}
-                  className="min-h-28"
+                  rows={2}
                 />
-                <div className="flex flex-wrap gap-2">
-                  {EXAMPLES.map((ex) => (
-                    <button
-                      key={ex}
-                      type="button"
-                      className="rounded-lg border border-ink/10 bg-white px-2.5 py-1 text-left text-xs text-ink-soft hover:bg-white/70"
-                      onClick={() => fields.setAvailability(ex)}
-                    >
-                      {ex}
-                    </button>
-                  ))}
-                </div>
                 {parsed && parsed.debugLines.length > 0 ? (
-                  <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5">
-                    <p className="text-sm font-medium text-ink">
-                      {parsed.summary}
-                    </p>
-                    <ul className="mt-1.5 space-y-1">
-                      {parsed.debugLines.map((line) => (
-                        <li key={line} className="text-sm text-ink">
-                          <span className="text-ocean" aria-hidden>
-                            ✓{" "}
-                          </span>
-                          {line}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+                  <AvailabilityInterpretation
+                    parsed={parsed}
+                    onChangeAvailability={fields.setAvailability}
+                  />
                 ) : null}
               </div>
             </div>
@@ -335,6 +308,11 @@ export function MobileCreateStudio({
                 Upload your own or pick a featured photo.
               </p>
             </div>
+
+            <div className="mx-auto mb-6 w-full max-w-[16rem]">
+              <FlippablePostcard catchUp={catchUp} large />
+            </div>
+
             <PhotoPicker
               value={fields.photo}
               onChange={fields.setPhoto}

@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { CatchUp, MeetingSlot, Participant } from "@/lib/types";
 import { PostcardBackContent, PostcardFrontContent } from "./PostcardFaces";
+
+function photoIdentity(catchUp: CatchUp): string {
+  return `${catchUp.photo?.src ?? ""}|${catchUp.photo?.dataUrl ?? ""}`;
+}
 
 export function FlippablePostcard({
   catchUp,
@@ -66,10 +70,20 @@ export function FlippablePostcard({
   );
   const flipped = controlled ? Boolean(flippedProp) : internalFlipped;
   const hasActions = Boolean(onCopyLink || onShare || onJoin || onEdit);
+  const photoKey = photoIdentity(catchUp);
+  const prevPhotoKeyRef = useRef(photoKey);
 
   useEffect(() => {
     if (!controlled) setInternalFlipped(initialSide === "back");
   }, [controlled, initialSide]);
+
+  // When the postcard photo changes, flip to the front so the image is visible.
+  useEffect(() => {
+    if (prevPhotoKeyRef.current === photoKey) return;
+    prevPhotoKeyRef.current = photoKey;
+    if (!controlled) setInternalFlipped(false);
+    onFlipChange?.(false);
+  }, [photoKey, controlled, onFlipChange]);
 
   function flip() {
     const next = !flipped;

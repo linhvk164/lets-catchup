@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AvailabilityInterpretation } from "@/components/AvailabilityInterpretation";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { Button, Field, FieldActionButton, TextArea } from "@/components/ui";
@@ -23,12 +24,6 @@ import type {
 
 export const DEFAULT_INVITE_TITLE = "Let's Catch-up ᯓ 💌";
 export const DEFAULT_DURATION = 30;
-
-const EXAMPLES = [
-  "Weekdays 10am–5pm",
-  "Evenings, not tomorrow",
-  "Weekends anytime",
-];
 
 export type InviteFormValues = {
   name: string;
@@ -298,7 +293,8 @@ export function usePostcardInviteForm({
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         hint="Leave blank to skip a handwritten note"
-        rows={3}
+        rows={1}
+        className="!min-h-0 resize-none py-3"
         style={{ fontFamily: messageFontFamily(messageFont) }}
         labelAction={
           <FieldActionButton
@@ -339,39 +335,18 @@ export function usePostcardInviteForm({
           }}
           requiredMark
           error={submitted ? errors.availability : undefined}
-          className="min-h-28"
+          rows={2}
         />
-        <div className="flex flex-wrap gap-2">
-          {EXAMPLES.map((ex) => (
-            <button
-              key={ex}
-              type="button"
-              className="rounded-lg border border-ink/10 bg-white px-2.5 py-1 text-left text-xs text-ink-soft hover:bg-white/70"
-              onClick={() => {
-                setAvailability(ex);
-                if (submitted) {
-                  setErrors((er) => ({ ...er, availability: undefined }));
-                }
-              }}
-            >
-              {ex}
-            </button>
-          ))}
-        </div>
         {parsed && parsed.debugLines.length > 0 ? (
-          <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5">
-            <p className="text-sm font-medium text-ink">{parsed.summary}</p>
-            <ul className="mt-1.5 space-y-1">
-              {parsed.debugLines.map((line) => (
-                <li key={line} className="text-sm text-ink">
-                  <span className="text-ocean" aria-hidden>
-                    ✓{" "}
-                  </span>
-                  {line}
-                </li>
-              ))}
-            </ul>
-          </div>
+          <AvailabilityInterpretation
+            parsed={parsed}
+            onChangeAvailability={(value) => {
+              setAvailability(value);
+              if (submitted) {
+                setErrors((er) => ({ ...er, availability: undefined }));
+              }
+            }}
+          />
         ) : null}
       </div>
 

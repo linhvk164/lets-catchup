@@ -25,7 +25,7 @@ describe("parseAvailabilityInput", () => {
 
     const weekends = parsed.rules[1];
     assert.deepEqual(weekends.days, ["saturday", "sunday"]);
-    assert.equal(weekends.start?.hour, 0);
+    assert.equal(weekends.start?.hour, 6);
     assert.equal(weekends.end?.hour, 0);
     assert.equal(weekends.label, "Anytime");
 
@@ -35,7 +35,7 @@ describe("parseAvailabilityInput", () => {
 
     assert.deepEqual(parsed.debugLines, [
       "Mon–Fri: After work (5 PM – 11 PM)",
-      "Sat–Sun: Anytime",
+      "Sat–Sun: Anytime (6 AM – 12 AM)",
       "Not available: August 20",
     ]);
   });
@@ -60,12 +60,12 @@ describe("parseAvailabilityInput", () => {
 
     const saturday = parsed.rules[1];
     assert.deepEqual(saturday.days, ["saturday"]);
-    assert.equal(saturday.start?.hour, 0);
+    assert.equal(saturday.start?.hour, 6);
     assert.equal(saturday.end?.hour, 0);
 
     assert.deepEqual(parsed.debugLines, [
       "Mon–Fri: 10 AM – 5 PM",
-      "Sat: Anytime",
+      "Sat: Anytime (6 AM – 12 AM)",
     ]);
   });
 
@@ -91,7 +91,7 @@ describe("parseAvailabilityInput", () => {
 
     assert.deepEqual(parsed.debugLines, [
       "Every day: Evenings (5 PM – 11 PM)",
-      "Not available: August 5",
+      "Not available: This Wednesday",
     ]);
   });
 
@@ -115,7 +115,7 @@ describe("parseAvailabilityInput", () => {
 
     assert.deepEqual(parsed.debugLines, [
       "Tue, Wed, Fri–Sun: 10 AM – 5 PM",
-      "Not available: Mon, Thu",
+      "Not available: Mondays, Thursdays",
     ]);
   });
 
@@ -134,7 +134,7 @@ describe("parseAvailabilityInput", () => {
     assert.equal(parsed.rules[0]?.label, "After work");
     assert.deepEqual(parsed.debugLines, [
       "Mon–Thu: After work (5 PM – 11 PM)",
-      "Not available: Fri",
+      "Not available: Fridays",
     ]);
   });
 
@@ -158,7 +158,7 @@ describe("parseAvailabilityInput", () => {
     ]);
     assert.deepEqual(parsed.debugLines, [
       "Mon, Tue, Thu–Sun: Evenings (5 PM – 11 PM)",
-      "Not available: Wed",
+      "Not available: Wednesdays",
     ]);
   });
 
@@ -178,8 +178,8 @@ describe("parseAvailabilityInput", () => {
     assert.equal(parsed.exceptions[0]?.date, "2026-08-08");
 
     assert.deepEqual(parsed.debugLines, [
-      "Sat–Sun: Anytime",
-      "Not available: August 8",
+      "Sat–Sun",
+      "Not available: This Saturday",
     ]);
   });
 
@@ -354,13 +354,13 @@ describe("parseAvailabilityInput", () => {
     );
     assert.ok(weekends);
     assert.deepEqual(weekends.days, ["saturday", "sunday"]);
-    assert.equal(weekends.start?.hour, 0);
+    assert.equal(weekends.start?.hour, 6);
     assert.equal(weekends.end?.hour, 0);
     assert.equal(weekends.label, "Anytime");
 
     assert.deepEqual(parsed.debugLines, [
       "Mon–Fri: 10 AM – 12 PM, 1 PM – 5 PM",
-      "Sat–Sun: Anytime",
+      "Sat–Sun: Anytime (6 AM – 12 AM)",
       "Not available: Mon–Fri, 12 PM – 1 PM",
     ]);
   });
@@ -375,14 +375,16 @@ describe("parseAvailabilityInput", () => {
     assert.deepEqual(weekdayBlock.days, ["monday", "tuesday", "wednesday"]);
     assert.equal(weekdayBlock.end?.hour, 17);
 
-    const anytimeBlock = parsed.rules.find((r) => r.label === "Anytime");
-    assert.ok(anytimeBlock);
-    assert.deepEqual(anytimeBlock.days, ["thursday", "friday", "saturday"]);
+    const freeDays = parsed.rules.find(
+      (r) => !r.start && r.days?.includes("thursday")
+    );
+    assert.ok(freeDays);
+    assert.deepEqual(freeDays.days, ["thursday", "friday", "saturday"]);
 
     assert.deepEqual(parsed.debugLines, [
       "Mon–Wed: 10 AM – 5 PM",
-      "Thu–Sat: Anytime",
-      "Not available: Sun",
+      "Thu–Sat",
+      "Not available: Sundays",
     ]);
   });
 
@@ -391,7 +393,142 @@ describe("parseAvailabilityInput", () => {
 
     assert.deepEqual(parsed.debugLines, [
       "Mon–Thu: 10 AM – 5 PM",
-      "Fri: Anytime",
+      "Fri",
+    ]);
+  });
+
+  it("does not invent times for bare Weekdays or Weekends", () => {
+    assert.deepEqual(parseAvailabilityInput("Weekdays").debugLines, [
+      "Mon–Fri",
+    ]);
+    assert.deepEqual(parseAvailabilityInput("Weekends").debugLines, [
+      "Sat–Sun",
+    ]);
+    assert.deepEqual(parseAvailabilityInput("Weekdays").structured.timeRanges, []);
+  });
+
+  it("assumes 6 AM–12 AM only when the user says Anytime", () => {
+    const anytime = parseAvailabilityInput("Anytime");
+    assert.deepEqual(anytime.debugLines, ["Anytime (6 AM – 12 AM)"]);
+    assert.equal(anytime.rules[0]?.start?.hour, 6);
+    assert.equal(anytime.rules[0]?.end?.hour, 0);
+
+    const weekends = parseAvailabilityInput("Free anytime weekends");
+    assert.deepEqual(weekends.debugLines, [
+      "Sat–Sun: Anytime (6 AM – 12 AM)",
+    ]);
+  });
+
+  it("keeps after-work times and recurring Sunday exclusion", () => {
+    assert.deepEqual(
+      parseAvailabilityInput("Weekdays after work. No Sunday.").debugLines,
+      [
+        "Mon–Fri: After work (5 PM – 11 PM)",
+        "Not available: Sundays",
+      ]
+    );
+  });
+
+  it("treats No Sundays as recurring unavailability", () => {
+    const parsed = parseAvailabilityInput("No Sundays.");
+    assert.deepEqual(parsed.debugLines, ["Not available: Sundays"]);
+  });
+
+  it("treats Not Sunday as recurring unavailability", () => {
+    const parsed = parseAvailabilityInput("Not Sunday.");
+    assert.deepEqual(parsed.debugLines, ["Not available: Sundays"]);
+  });
+
+  it("treats Not this Sunday as a relative date", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Not this Sunday.", now);
+    assert.equal(parsed.exceptions[0]?.date, "2026-08-09");
+    assert.deepEqual(parsed.debugLines, ["Not available: This Sunday"]);
+  });
+
+  it("treats Not next Sunday as a relative date", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Not next Sunday.", now);
+    assert.equal(parsed.exceptions[0]?.date, "2026-08-16");
+    assert.deepEqual(parsed.debugLines, ["Not available: Next Sunday"]);
+  });
+
+  it("keeps weekday evenings and No Sunday as recurring", () => {
+    const parsed = parseAvailabilityInput("Weekday evenings. No Sunday.");
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: Evenings (5 PM – 11 PM)",
+      "Not available: Sundays",
+    ]);
+  });
+
+  it("keeps weekday evenings but not Sunday as recurring", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput(
+      "Weekday evenings but not Sunday.",
+      now
+    );
+    assert.equal(parsed.exceptions.length, 0);
+    assert.deepEqual(parsed.debugLines, [
+      "Mon–Fri: Evenings (5 PM – 11 PM)",
+      "Not available: Sundays",
+    ]);
+  });
+
+  it("marks Busy tomorrow as relative unavailability", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Busy tomorrow.", now);
+    assert.equal(parsed.exceptions[0]?.date, "2026-08-06");
+    assert.deepEqual(parsed.debugLines, ["Not available: Tomorrow"]);
+  });
+
+  it("marks Free next Wednesday as relative availability", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Free next Wednesday.", now);
+    assert.equal(parsed.exceptions[0]?.date, "2026-08-12");
+    assert.equal(parsed.exceptions[0]?.type, "free_all_day");
+    assert.deepEqual(parsed.debugLines, ["Available: Next Wednesday"]);
+  });
+
+  it("marks Not free next week as relative unavailability", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Not free next week.", now);
+    assert.ok(parsed.exceptions.length >= 7);
+    assert.deepEqual(parsed.debugLines, ["Not available: Next week"]);
+  });
+
+  it("marks Free this weekend as relative availability", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const parsed = parseAvailabilityInput("Free this weekend.", now);
+    assert.equal(parsed.exceptions.length, 2);
+    assert.deepEqual(parsed.debugLines, ["Available: This weekend"]);
+  });
+
+  it("distinguishes this Sunday from next Sunday after weekdays", () => {
+    const now = DateTime.fromObject({ year: 2026, month: 8, day: 5, hour: 12 });
+    if (!now.isValid) throw new Error("invalid now");
+    const thisSun = parseAvailabilityInput(
+      "Weekdays after work. Not this Sunday.",
+      now
+    );
+    assert.deepEqual(thisSun.debugLines, [
+      "Mon–Fri: After work (5 PM – 11 PM)",
+      "Not available: This Sunday",
+    ]);
+
+    const nextSun = parseAvailabilityInput(
+      "Weekdays after work. Not next Sunday.",
+      now
+    );
+    assert.deepEqual(nextSun.debugLines, [
+      "Mon–Fri: After work (5 PM – 11 PM)",
+      "Not available: Next Sunday",
     ]);
   });
 });
