@@ -112,7 +112,7 @@ export function LandingHeroPostcard() {
           ambientIdle
         >
           <div
-            className="postcard-stage w-full cursor-pointer"
+            className="postcard-stage cursor-pointer"
             onClick={flip}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {

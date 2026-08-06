@@ -174,10 +174,16 @@ body > * {
 }
 
 /*
-  Physical postcard: identical size both sides.
-  Width is capped by design max AND by viewport height so the card
-  (plus page chrome / flip control) never overflows the screen.
+  Physical postcard: fixed 3∶4.15 ratio.
+  Size by WIDTH only (height comes from aspect-ratio). Never set an
+  independent height/max-height on the stage — that squashes the card.
 */
+:root {
+  --postcard-aspect: 3 / 4.15;
+  --postcard-aspect-h: 4.15;
+  --postcard-aspect-w: 3;
+}
+
 .postcard-product {
   --postcard-max-w: 36rem; /* 576px */
   /* Header, title, padding, actions, flip control */
@@ -185,10 +191,16 @@ body > * {
   position: relative;
   z-index: 30;
   overflow: visible;
+  flex-shrink: 0;
+  align-self: center;
+  height: fit-content;
   width: min(
     100%,
     var(--postcard-max-w),
-    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15)
+    calc(
+      (100dvh - var(--postcard-vh-reserve)) * var(--postcard-aspect-w) /
+        var(--postcard-aspect-h)
+    )
   );
   margin-inline: auto;
 }
@@ -209,7 +221,10 @@ body > * {
   --postcard-vh-reserve: 20rem;
   width: min(
     var(--postcard-max-w),
-    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15),
+    calc(
+      (100dvh - var(--postcard-vh-reserve)) * var(--postcard-aspect-w) /
+        var(--postcard-aspect-h)
+    ),
     calc(100vw - 2.5rem)
   );
 }
@@ -232,6 +247,22 @@ body > * {
   --postcard-vh-reserve: 6.5rem;
 }
 
+/* Preview modal: fit viewport, keep ratio, never stretch */
+.postcard-product.postcard-product--preview {
+  --postcard-max-w: 30rem;
+  --postcard-vh-reserve: 7.5rem;
+  width: min(
+    var(--postcard-max-w),
+    calc(
+      (100dvh - var(--postcard-vh-reserve)) * var(--postcard-aspect-w) /
+        var(--postcard-aspect-h)
+    ),
+    calc(100vw - 2.5rem)
+  );
+  height: fit-content;
+  max-height: none;
+}
+
 @media (max-height: 720px) {
   .postcard-product {
     --postcard-vh-reserve: 11.5rem;
@@ -245,22 +276,28 @@ body > * {
     --postcard-vh-reserve: 10rem;
   }
 
-  .postcard-product--viewport {
+  .postcard-product--viewport,
+  .postcard-product--preview {
     --postcard-vh-reserve: 5.5rem;
   }
 }
 
 .postcard-stage {
+  position: relative;
   width: 100%;
-  aspect-ratio: 3 / 4.15;
+  height: auto;
+  aspect-ratio: var(--postcard-aspect);
+  max-height: none;
   perspective: 1400px;
   overflow: visible;
+  flex-shrink: 0;
 }
 
 .postcard-flipper {
-  position: relative;
-  width: 100%;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  width: auto;
+  height: auto;
   transform-style: preserve-3d;
   transition: transform 0.7s cubic-bezier(0.4, 0.2, 0.2, 1);
 }
@@ -285,9 +322,10 @@ body > * {
 }
 
 .postcard-face--static {
-  position: relative;
-  inset: auto;
-  height: 100%;
+  position: absolute;
+  inset: 0;
+  height: auto;
+  width: auto;
   transform: none;
   backface-visibility: visible;
 }
@@ -305,6 +343,7 @@ body > * {
 .interactive-postcard {
   position: relative;
   width: 100%;
+  height: fit-content;
   perspective: 1200px;
   perspective-origin: 50% 45%;
   transform-origin: 50% 50%;
@@ -316,15 +355,20 @@ body > * {
 .interactive-postcard.postcard-product {
   width: min(
     var(--postcard-max-w),
-    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15),
+    calc(
+      (100dvh - var(--postcard-vh-reserve)) * var(--postcard-aspect-w) /
+        var(--postcard-aspect-h)
+    ),
     calc(100vw - 2.5rem)
   );
+  height: fit-content;
   margin-inline: auto;
 }
 
 .interactive-postcard__frame {
   position: relative;
   width: 100%;
+  height: fit-content;
   /* Flat parent so postcard flip backfaces stay hidden under tilt. */
   transform-style: flat;
   will-change: transform;
@@ -335,6 +379,7 @@ body > * {
 
 .interactive-postcard--static {
   width: 100%;
+  height: fit-content;
 }
 
 .interactive-postcard .postcard-face {
@@ -594,8 +639,9 @@ body > * {
 
 ::view-transition-old(.morph),
 ::view-transition-new(.morph) {
-  height: 100%;
+  height: auto;
   width: 100%;
+  aspect-ratio: var(--postcard-aspect);
   object-fit: contain;
   overflow: clip;
 }
