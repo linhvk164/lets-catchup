@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { SiteHeader } from "@/components/SiteHeader";
 import { FlippablePostcard } from "@/components/postcard";
 import {
   draftToParticipant,
@@ -19,6 +18,10 @@ import {
   type CatchUpViewer,
 } from "@/lib/storage";
 import type { MeetingSlot, Participant } from "@/lib/types";
+import {
+  ConfettiBurst,
+  consumePostcardCelebrate,
+} from "@/components/ConfettiBurst";
 
 export function CatchUpInvitationClient() {
   const params = useParams<{ id: string }>();
@@ -44,6 +47,7 @@ export function CatchUpInvitationClient() {
   const [viewer, setViewer] = useState<CatchUpViewer | null>(null);
   const [copied, setCopied] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
   const [editorMode, setEditorMode] = useState<"add" | "edit" | "join" | null>(
     null
   );
@@ -61,6 +65,13 @@ export function CatchUpInvitationClient() {
     // First open of a shared link in this browser → invitee.
     markAsInvitee(catchUp.id);
     setViewer({ role: "invitee" });
+  }, [catchUp]);
+
+  useEffect(() => {
+    if (!catchUp) return;
+    if (consumePostcardCelebrate(catchUp.id)) {
+      setCelebrate(true);
+    }
   }, [catchUp]);
 
   const isCreator = viewer?.role === "creator";
@@ -166,7 +177,6 @@ export function CatchUpInvitationClient() {
   if (!catchUp) {
     return (
       <div className="flex min-h-full flex-col">
-        <SiteHeader compact />
         <main className="mx-auto w-full max-w-lg flex-1 px-5 py-16 text-center">
           <h1 className="font-display text-3xl text-ink">Invitation not found</h1>
           <p className="mt-3 text-sm text-ink-soft">
@@ -182,7 +192,7 @@ export function CatchUpInvitationClient() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <SiteHeader compact />
+      {celebrate ? <ConfettiBurst active /> : null}
       <main className="mx-auto w-full max-w-[36rem] flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5 lg:max-w-4xl">
         <div className="animate-fade-rise text-center">
           <h1 className="font-display text-2xl text-ink sm:text-3xl">
@@ -197,7 +207,9 @@ export function CatchUpInvitationClient() {
 
         <div
           ref={postcardRef}
-          className="mx-auto mt-5 flex max-w-[42rem] scroll-mt-4 justify-center"
+          className={`mx-auto mt-5 flex max-w-[42rem] scroll-mt-4 justify-center ${
+            celebrate ? "postcard-celebrate-enter" : ""
+          }`}
         >
           <FlippablePostcard
             catchUp={catchUp}

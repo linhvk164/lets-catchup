@@ -18,6 +18,7 @@ export function FlippablePostcard({
   onFlipChange,
   showFlipButton = true,
   disableFaceClick = false,
+  onClose,
   onViewMore,
   onAddParticipant,
   onEditParticipant,
@@ -46,6 +47,8 @@ export function FlippablePostcard({
   onFlipChange?: (flipped: boolean) => void;
   showFlipButton?: boolean;
   disableFaceClick?: boolean;
+  /** Touch screens: show an × close control under the postcard (right). */
+  onClose?: () => void;
   onViewMore?: () => void;
   onAddParticipant?: () => void;
   onEditParticipant?: (participant: Participant) => void;
@@ -181,18 +184,55 @@ export function FlippablePostcard({
         </div>
       ) : null}
 
-      {showFlipButton ? (
-        <button
-          type="button"
-          onClick={flip}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-ink-soft transition hover:text-ink"
-          aria-label={
-            flipped ? "Flip to front of postcard" : "Flip to back of postcard"
-          }
-        >
-          <span aria-hidden>↻</span>
-          {flipped ? "Flip to front" : "Flip to back"}
-        </button>
+      {showFlipButton || onClose ? (
+        onClose ? (
+          <div className="mt-4 flex items-center justify-between gap-2 sm:mt-5">
+            {showFlipButton ? (
+              <button
+                type="button"
+                onClick={flip}
+                className="inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-ink/10 bg-white/55 px-2.5 py-1.5 text-sm font-medium text-ink backdrop-blur-sm transition hover:bg-white/75 active:scale-[0.98]"
+                aria-label="Click or tap to flip postcard"
+              >
+                <span aria-hidden>↻</span>
+                click/tap to flip
+              </button>
+            ) : (
+              <span aria-hidden />
+            )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex shrink-0 items-center justify-center gap-1 rounded-full border border-ink/10 bg-white/55 px-2.5 py-1.5 text-sm font-medium text-ink backdrop-blur-sm transition hover:bg-white/75 active:scale-[0.98]"
+              aria-label="Close"
+            >
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.25"
+                strokeLinecap="round"
+                aria-hidden
+              >
+                <path d="M18 6 6 18" />
+                <path d="m6 6 12 12" />
+              </svg>
+              Close
+            </button>
+          </div>
+        ) : showFlipButton ? (
+          <button
+            type="button"
+            onClick={flip}
+            className="mt-5 inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-ink-soft transition hover:text-ink sm:mt-6"
+            aria-label="Click or tap to flip postcard"
+          >
+            <span aria-hidden>↻</span>
+            click/tap to flip
+          </button>
+        ) : null
       ) : null}
     </div>
   );

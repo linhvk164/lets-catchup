@@ -9,12 +9,14 @@ export function PhotoPicker({
   onChange,
   compact = false,
   focused = false,
+  onInteract,
 }: {
   value: PostcardPhoto;
   onChange: (photo: PostcardPhoto) => void;
   compact?: boolean;
   /** Full-screen photo step: larger grid + credits. */
   focused?: boolean;
+  onInteract?: () => void;
 }) {
   function onUpload(file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) return;
@@ -40,6 +42,7 @@ export function PhotoPicker({
       className={
         focused ? "space-y-4" : compact ? "space-y-2" : "max-w-[14rem] space-y-2"
       }
+      onPointerDown={() => onInteract?.()}
     >
       {!compact && !focused ? (
         <p className="text-sm font-medium text-ink">Postcard photo</p>

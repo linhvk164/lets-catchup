@@ -1,12 +1,58 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 
 /** Empty postage stamp placeholder (top-right of postcard back). */
 export function StampArea({ label = "Stamp" }: { label?: string }) {
   return (
     <div className="postcard-stamp postcard-layer-stamp" aria-label="Stamp area" role="img">
       <span className="postcard-stamp__label">{label}</span>
+    </div>
+  );
+}
+
+/** Ruled blank like a real postcard fill-in line. */
+export function PostcardWriteLine({
+  className = "",
+  label,
+  inline = false,
+}: {
+  className?: string;
+  label?: string;
+  inline?: boolean;
+}) {
+  return (
+    <span
+      role="presentation"
+      aria-label={label}
+      className={`postcard-write-line ${
+        inline ? "postcard-write-line--inline" : ""
+      } ${className}`}
+    />
+  );
+}
+
+/** Stack of write-in lines for longer blank fields (e.g. availability). */
+export function PostcardWriteLines({
+  count = 3,
+  label,
+}: {
+  count?: number;
+  label?: string;
+}) {
+  return (
+    <div className="postcard-write-lines" aria-label={label}>
+      {Array.from({ length: count }, (_, i) => (
+        <span key={i} className="postcard-write-line" />
+      ))}
     </div>
   );
 }
@@ -53,7 +99,82 @@ export function RecipientList({
   );
 }
 
-/** Handwritten-style personal note; optional live edit without form chrome. */
+const MESSAGE_MAX_FONT_DESKTOP_PX = 32; // landing / create desktop default
+const MESSAGE_MAX_FONT_TABLET_PX = 22; // sm–lg
+const MESSAGE_MAX_FONT_MOBILE_PX = 17; // < sm
+const MESSAGE_MIN_FONT_PX = 11;
+const MESSAGE_LINE_HEIGHT = 1.45;
+const MESSAGE_MAX_LINES = 2;
+/** Vertical padding on .postcard-message (0.15rem + 0.3rem). */
+const MESSAGE_PAD_Y_PX = 7.2;
+
+/**
+ * Default message size follows viewport (same on landing + create),
+ * not the rendered card width — so create matches the landing postcard.
+ */
+function maxFontForViewport(): number {
+  if (typeof window === "undefined") return MESSAGE_MAX_FONT_MOBILE_PX;
+  if (window.matchMedia("(min-width: 1024px)").matches) {
+    return MESSAGE_MAX_FONT_DESKTOP_PX;
+  }
+  if (window.matchMedia("(min-width: 640px)").matches) {
+    return MESSAGE_MAX_FONT_TABLET_PX;
+  }
+  return MESSAGE_MAX_FONT_MOBILE_PX;
+}
+
+function twoLineMaxHeight(maxFont: number): number {
+  return maxFont * MESSAGE_LINE_HEIGHT * MESSAGE_MAX_LINES + MESSAGE_PAD_Y_PX;
+}
+
+function measureFitsTwoLines(el: HTMLElement, maxHeight: number): boolean {
+  return el.scrollHeight <= maxHeight + 1;
+}
+
+/**
+ * Keep the default size unless content needs more than 2 lines;
+ * then binary-search down so it still fits in 2 lines.
+ */
+function fitFontSize(
+  el: HTMLElement,
+  maxHeight: number,
+  maxFont: number,
+  minFont: number
+): number {
+  el.style.height = "auto";
+  el.style.fontSize = `${maxFont}px`;
+
+  if (measureFitsTwoLines(el, maxHeight)) {
+    if (el instanceof HTMLTextAreaElement) {
+      el.style.height = `${Math.min(el.scrollHeight + 6, maxHeight)}px`;
+    }
+    return maxFont;
+  }
+
+  let lo = minFont;
+  let hi = maxFont;
+  let best = minFont;
+
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    el.style.fontSize = `${mid}px`;
+    el.style.height = "auto";
+    if (measureFitsTwoLines(el, maxHeight)) {
+      best = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
+  }
+
+  el.style.fontSize = `${best}px`;
+  if (el instanceof HTMLTextAreaElement) {
+    el.style.height = `${Math.min(el.scrollHeight + 6, maxHeight)}px`;
+  }
+  return best;
+}
+
+/** Handwritten note; default size until more than 2 lines, then shrinks to fit. */
 export function MessageArea({
   value,
   editable = false,
@@ -65,50 +186,95 @@ export function MessageArea({
   onChange?: (value: string) => void;
   fontFamily?: string;
 }) {
-  const ref = useRef<HTMLTextAreaElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const textRef = useRef<HTMLDivElement | null>(null);
+  const areaRef = useRef<HTMLTextAreaElement | null>(null);
   const [focused, setFocused] = useState(false);
-  const handStyle = fontFamily ? { fontFamily } : undefined;
+  const [fontSize, setFontSize] = useState(MESSAGE_MAX_FONT_MOBILE_PX);
+
+  const fit = useCallback(() => {
+    const shell = shellRef.current;
+    const el = editable ? areaRef.current : textRef.current;
+    if (!shell || !el) return;
+
+    const maxFont = maxFontForViewport();
+    const maxHeight = twoLineMaxHeight(maxFont);
+    shell.style.maxHeight = `${maxHeight}px`;
+    const next = fitFontSize(
+      el,
+      maxHeight,
+      maxFont,
+      MESSAGE_MIN_FONT_PX
+    );
+    setFontSize(next);
+  }, [editable]);
+
+  useLayoutEffect(() => {
+    fit();
+  }, [value, fontFamily, focused, fit]);
 
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }, [value, focused, fontFamily]);
+    const shell = shellRef.current;
+    if (!shell) return;
+
+    const stage = shell.closest(".postcard-stage");
+    const ro = new ResizeObserver(() => fit());
+    ro.observe(shell);
+    if (stage) ro.observe(stage);
+
+    const mqDesktop = window.matchMedia("(min-width: 1024px)");
+    const mqTablet = window.matchMedia("(min-width: 640px)");
+    const onViewportChange = () => fit();
+    mqDesktop.addEventListener("change", onViewportChange);
+    mqTablet.addEventListener("change", onViewportChange);
+
+    return () => {
+      ro.disconnect();
+      mqDesktop.removeEventListener("change", onViewportChange);
+      mqTablet.removeEventListener("change", onViewportChange);
+    };
+  }, [fit]);
+
+  const handStyle: CSSProperties = {
+    fontFamily: fontFamily || undefined,
+    fontSize: `${fontSize}px`,
+    lineHeight: MESSAGE_LINE_HEIGHT,
+    whiteSpace: "pre-wrap",
+  };
 
   if (!editable || !onChange) {
     return (
-      <div className="postcard-message font-hand" style={handStyle}>
-        {value.split("\n").map((line, i) =>
-          line ? (
-            <p key={`${i}-${line}`} className={i > 0 ? "mt-2" : undefined}>
-              {line}
-            </p>
-          ) : (
-            <br key={`br-${i}`} />
-          )
-        )}
+      <div ref={shellRef} className="postcard-message-shell">
+        <div
+          ref={textRef}
+          className="postcard-message font-hand"
+          style={handStyle}
+        >
+          {value}
+        </div>
       </div>
     );
   }
 
   return (
-    <textarea
-      ref={ref}
-      className={`postcard-message postcard-message--edit font-hand ${
-        focused ? "is-editing" : ""
-      }`}
-      style={handStyle}
-      value={value}
-      rows={3}
-      spellCheck
-      aria-label="Postcard message"
-      onClick={(e) => e.stopPropagation()}
-      onMouseDown={(e) => e.stopPropagation()}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <div ref={shellRef} className="postcard-message-shell">
+      <textarea
+        ref={areaRef}
+        className={`postcard-message postcard-message--edit font-hand ${
+          focused ? "is-editing" : ""
+        }`}
+        style={handStyle}
+        value={value}
+        rows={2}
+        spellCheck
+        aria-label="Postcard message"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </div>
   );
 }
 
@@ -126,7 +292,7 @@ export function EditableTitle({
 
   if (!editable || !onChange) {
     return (
-      <p className="font-display text-xl leading-tight tracking-tight text-ink sm:text-2xl">
+      <p className="font-display text-lg leading-tight tracking-tight text-ink sm:text-2xl lg:text-3xl">
         {value}
       </p>
     );

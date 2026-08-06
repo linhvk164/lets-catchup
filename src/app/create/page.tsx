@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useRef, ViewTransition } from "react";
+import { useCallback, useRef, useState, ViewTransition } from "react";
 import { useRouter } from "next/navigation";
 import { customAlphabet } from "nanoid";
 import { MobileCreateStudio } from "@/components/MobileCreateStudio";
-import { SiteHeader } from "@/components/SiteHeader";
 import { FlippablePostcard } from "@/components/postcard";
 import { usePostcardInviteForm } from "@/components/PostcardInviteForm";
+import { SiteHeader } from "@/components/SiteHeader";
 import { parseAvailabilityInput } from "@/lib/availability";
 import {
   buildSharePath,
@@ -14,6 +14,7 @@ import {
   markAsCreator,
   saveCatchUp,
 } from "@/lib/storage";
+import { markPostcardCelebrate } from "@/components/ConfettiBurst";
 import type { CatchUp } from "@/lib/types";
 
 const participantId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 6);
@@ -21,6 +22,11 @@ const participantId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 6);
 export default function CreatePage() {
   const router = useRouter();
   const savedIdRef = useRef<string | null>(null);
+  const [flipped, setFlipped] = useState(false);
+
+  const revealSide = useCallback((side: "front" | "back") => {
+    setFlipped(side === "back");
+  }, []);
 
   const buildCatchUp = useCallback(
     (values: {
@@ -93,9 +99,11 @@ export default function CreatePage() {
     formId: "create-postcard-form",
     mobileStickySubmit: true,
     submitLabel: "Ready to share",
+    onRevealSide: revealSide,
     onSubmit: (formValues) => {
       const catchUp = buildCatchUp(formValues);
       persistCreated(catchUp);
+      markPostcardCelebrate(catchUp.id);
       router.push(buildSharePath(catchUp));
     },
   });
@@ -113,6 +121,8 @@ export default function CreatePage() {
 
   return (
     <>
+      <SiteHeader compact />
+
       {/* Mobile: simple stepped form */}
       <div className="lg:hidden">
         <MobileCreateStudio
@@ -128,8 +138,7 @@ export default function CreatePage() {
 
       {/* Desktop: classic two-column create */}
       <div className="hidden min-h-full flex-col lg:flex">
-        <SiteHeader compact />
-        <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5">
           <div className="animate-fade-rise max-w-xl">
             <h1 className="font-display text-3xl text-ink sm:text-4xl">
               Create a postcard invite
@@ -139,11 +148,16 @@ export default function CreatePage() {
             </p>
           </div>
 
-          <div className="mt-8 grid gap-10 lg:grid-cols-2">
-            <aside>
-              <div className="sticky top-6 z-10 self-start">
+          <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:items-start">
+            <aside className="flex justify-center">
+              <div className="sticky top-6 z-30 w-full max-w-none self-start overflow-visible">
                 <ViewTransition name="opa-postcard" share="morph" default="none">
-                  <FlippablePostcard catchUp={previewCatchUp} large />
+                  <FlippablePostcard
+                    catchUp={previewCatchUp}
+                    large
+                    flipped={flipped}
+                    onFlipChange={setFlipped}
+                  />
                 </ViewTransition>
               </div>
             </aside>

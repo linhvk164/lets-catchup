@@ -10,11 +10,16 @@ import type {
 } from "@/lib/types";
 import { resolvePhotoSrc } from "@/lib/photos";
 import { messageFontFamily } from "@/lib/message-fonts";
-import { resolvePostcardMessage } from "@/lib/postcard-copy";
+import {
+  ENTER_DETAILS_HINT,
+  resolvePostcardMessage,
+} from "@/lib/postcard-copy";
 import {
   EditableTitle,
   MessageArea,
   PostcardDivider,
+  PostcardWriteLine,
+  PostcardWriteLines,
   StampArea,
 } from "./PostcardAnatomy";
 
@@ -84,7 +89,7 @@ function AvailabilitySection({
 
   const availabilityHeading = (
     <div className="flex items-center justify-between gap-3">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-ink-soft">
+      <p className="postcard-meta postcard-meta--medium">
         {hasBestTime ? "Best time" : "Availability"}
       </p>
       {onViewAvailability && !isCreating && catchUp.participants.length > 0 ? (
@@ -94,7 +99,7 @@ function AvailabilitySection({
             e.stopPropagation();
             onViewAvailability();
           }}
-          className="shrink-0 text-xs text-ocean underline underline-offset-2 transition-colors hover:text-ocean-deep"
+          className="postcard-meta shrink-0 text-ocean underline underline-offset-2 transition-colors hover:text-ocean-deep"
         >
           View all schedules
         </button>
@@ -112,22 +117,22 @@ function AvailabilitySection({
     );
 
     return (
-      <div className="postcard-back-availability space-y-2.5 text-left">
+      <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
-        <h3 className="font-display text-xl text-ink sm:text-2xl">
+        <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
           {dateLabel}
         </h3>
-        <ul className="space-y-2">
+        <ul className="space-y-1.5">
           {places.map((place) => (
             <li
               key={`${place.participantId}-${place.hour}-${place.cityLabel}`}
-              className="flex min-w-0 items-baseline justify-between gap-2 text-sm leading-snug"
+              className="postcard-meta flex min-w-0 items-baseline justify-between gap-2"
             >
-              <span className="min-w-0 truncate font-medium text-ink">
+              <span className="postcard-meta--medium min-w-0 truncate">
                 {place.cityLabel}
                 {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
               </span>
-              <span className="shrink-0 text-ink-soft">{place.timeLabel}</span>
+              <span className="shrink-0">{place.timeLabel}</span>
             </li>
           ))}
         </ul>
@@ -138,7 +143,7 @@ function AvailabilitySection({
               e.stopPropagation();
               onViewMore();
             }}
-            className="inline-flex items-center rounded-full border border-ink/10 bg-ink/[0.03] px-2.5 py-0.5 text-xs font-medium text-ink-soft transition hover:border-ocean/30 hover:text-ocean-deep"
+            className="postcard-meta inline-flex items-center rounded-full border border-ink/10 bg-ink/[0.03] px-2.5 py-0.5 transition hover:border-ocean/30 hover:text-ocean-deep"
           >
             + {moreCount} more
           </button>
@@ -150,31 +155,35 @@ function AvailabilitySection({
   return (
     <div className="postcard-back-availability space-y-2 text-left">
       {availabilityHeading}
-      <p className="text-sm leading-relaxed text-ink-soft">
-        {isCreating ? (
-          hasCreatorAvailability ? (
-            <>
-              <span className="text-ocean" aria-hidden>
-                ✓{" "}
-              </span>
-              Availability added. Once your friends share their availability,
-              we&apos;ll find a time that works for everyone.
-            </>
+      {isCreating && !hasCreatorAvailability && catchUp.id === "draft" ? (
+        <PostcardWriteLines count={3} label="Availability" />
+      ) : (
+        <p className="postcard-meta leading-relaxed">
+          {isCreating ? (
+            hasCreatorAvailability ? (
+              <>
+                <span className="text-ocean" aria-hidden>
+                  ✓{" "}
+                </span>
+                Availability added. Once your friends share their availability,
+                we&apos;ll find a time that works for everyone.
+              </>
+            ) : (
+              "Add your availability"
+            )
+          ) : hasFriends ? (
+            "We're still looking for a time that works for everyone."
           ) : (
-            "Add your availability"
-          )
-        ) : hasFriends ? (
-          "We're still looking for a time that works for everyone."
-        ) : (
-          "Your postcard is ready to share. Times will appear once everyone adds their availability."
-        )}
-      </p>
+            "Your postcard is ready to share. Times will appear once everyone adds their availability."
+          )}
+        </p>
+      )}
     </div>
   );
 }
 
 const nameLinkClass =
-  "text-ink underline underline-offset-2 transition-colors hover:text-ocean-deep";
+  "font-normal underline underline-offset-2 transition-colors hover:text-ocean-deep";
 
 function ParticipantNameButton({
   participant,
@@ -184,7 +193,9 @@ function ParticipantNameButton({
   onEdit?: (participant: Participant) => void;
 }) {
   const label = participant.name;
-  if (!onEdit) return <>{label}</>;
+  if (!onEdit) {
+    return <span className="font-normal">{label}</span>;
+  }
   return (
     <button
       type="button"
@@ -204,19 +215,37 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
   const creatorName = creator?.name?.trim();
   const showFrom = Boolean(creatorName && creatorName !== "You");
+  const isDraft = catchUp.id === "draft";
+  const title = catchUp.title?.trim() ?? "";
 
   return (
     <div className="flex h-full flex-col">
       <div className="min-h-0 w-full flex-1">
         <CitiesFront photo={catchUp.photo} />
       </div>
-      <div className="postcard-layer-text shrink-0 space-y-1 px-4 py-3 text-left sm:px-5 sm:py-3.5">
-        <h2 className="font-display text-xl tracking-tight text-ink sm:text-2xl">
-          {catchUp.title}
-        </h2>
+      <div className="postcard-layer-text shrink-0 space-y-0.5 px-3.5 py-2.5 text-left sm:space-y-1 sm:px-5 sm:py-3.5">
+        {title ? (
+          <h2 className="font-display text-lg tracking-tight text-ink sm:text-2xl lg:text-3xl">
+            {title}
+          </h2>
+        ) : isDraft ? (
+          <PostcardWriteLine
+            className="postcard-write-line--title"
+            label="Postcard title"
+          />
+        ) : (
+          <h2 className="font-display text-lg tracking-tight text-ink sm:text-2xl lg:text-3xl">
+            &nbsp;
+          </h2>
+        )}
         {showFrom ? (
-          <p className="text-sm leading-relaxed text-ink-soft">
+          <p className="postcard-meta mt-3 font-normal">
             from {creatorName}
+          </p>
+        ) : isDraft ? (
+          <p className="postcard-meta mt-3 font-normal">
+            from
+            <PostcardWriteLine inline label="Your name" />
           </p>
         ) : null}
       </div>
@@ -257,6 +286,10 @@ export function PostcardBackContent({
   const creatorName = creator?.name?.trim();
   const showFrom = Boolean(creatorName && creatorName !== "You");
   const message = resolvePostcardMessage(catchUp.message);
+  const isDraft = catchUp.id === "draft";
+  const title = catchUp.title?.trim() ?? "";
+  const showDetailsHint =
+    isDraft && !message && !title && !showFrom;
 
   const recipients = catchUp.participants
     .filter((p) => !p.isCreator)
@@ -284,7 +317,7 @@ export function PostcardBackContent({
   }
 
   return (
-    <div className="flex h-full flex-col overflow-hidden p-4 sm:p-5">
+    <div className="relative flex h-full flex-col overflow-hidden p-3.5 pb-8 sm:p-5 sm:pb-10">
       <div className="postcard-back-invite flex min-h-0 flex-col">
         {/* Eyebrow rule */}
         <div className="flex shrink-0 items-center gap-3">
@@ -295,25 +328,37 @@ export function PostcardBackContent({
         </div>
 
         {/* Title + stamp */}
-        <div className="mt-3 flex shrink-0 items-start justify-between gap-3">
+        <div className="mt-2.5 flex shrink-0 items-start justify-between gap-2.5 sm:mt-3 sm:gap-3">
           <div className="min-w-0 flex-1 text-left">
-            <EditableTitle
-              value={catchUp.title}
-              editable={Boolean(onUpdateTitle)}
-              onChange={onUpdateTitle}
-            />
+            {title || onUpdateTitle ? (
+              <EditableTitle
+                value={catchUp.title}
+                editable={Boolean(onUpdateTitle)}
+                onChange={onUpdateTitle}
+              />
+            ) : isDraft ? (
+              <PostcardWriteLine
+                className="postcard-write-line--title"
+                label="Postcard title"
+              />
+            ) : null}
             {showFrom && creator ? (
-              <p className="mt-1 text-sm text-ink-soft">
+              <p className="postcard-meta mt-3 font-normal">
                 from{" "}
                 <ParticipantNameButton
                   participant={creator}
                   onEdit={editHandler(creator)}
                 />
               </p>
+            ) : isDraft ? (
+              <p className="postcard-meta mt-3 font-normal">
+                from
+                <PostcardWriteLine inline label="Your name" />
+              </p>
             ) : null}
             {recipientPeople.length > 0 ? (
               <p
-                className={`${showFrom ? "mt-0.5" : "mt-1"} text-sm text-ink-soft`}
+                className={`postcard-meta font-normal ${showFrom || isDraft ? "mt-1.5" : "mt-3"}`}
               >
                 to{" "}
                 <span>
@@ -334,7 +379,7 @@ export function PostcardBackContent({
         </div>
 
         {message ? (
-          <div className="mt-4 min-h-0 shrink-0">
+          <div className="mt-2.5 min-h-0 shrink sm:mt-4">
             <MessageArea
               value={message}
               editable={Boolean(onUpdateMessage)}
@@ -342,25 +387,48 @@ export function PostcardBackContent({
               fontFamily={messageFontFamily(catchUp.messageFont)}
             />
           </div>
-        ) : !showFrom ? (
-          <p className="mt-4 text-sm leading-relaxed text-ink-soft/70">
-            Enter details to see them appear here
-          </p>
+        ) : showDetailsHint ? (
+          <div className="mt-2.5 min-h-0 shrink sm:mt-4">
+            <p className="text-sm leading-relaxed text-ink-soft/70">
+              {ENTER_DETAILS_HINT}
+            </p>
+          </div>
+        ) : onUpdateMessage ? (
+          <div className="mt-2.5 min-h-0 shrink sm:mt-4">
+            <MessageArea
+              value=""
+              editable
+              onChange={onUpdateMessage}
+              fontFamily={messageFontFamily(catchUp.messageFont)}
+            />
+          </div>
         ) : null}
       </div>
 
-      <div className="my-4 shrink-0">
+      <div className="my-3 shrink-0 sm:my-4">
         <PostcardDivider />
       </div>
 
       {/* Availability */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5">
         <AvailabilitySection
           catchUp={catchUp}
           bestSlot={bestSlot ?? null}
           moreCount={moreCount}
           onViewMore={onViewMore}
           onViewAvailability={onViewAvailability}
+        />
+      </div>
+
+      <div className="pointer-events-none absolute bottom-2.5 right-3 sm:bottom-3 sm:right-4">
+        <Image
+          src="/images/logo/logo-stamped-black.png"
+          alt=""
+          width={2373}
+          height={1134}
+          className="h-10 w-auto select-none opacity-50 sm:h-12 lg:h-14"
+          unoptimized
+          aria-hidden
         />
       </div>
     </div>
@@ -370,7 +438,7 @@ export function PostcardBackContent({
 export function PostcardFront({ catchUp }: { catchUp: CatchUp; animate?: boolean }) {
   return (
     <article className="postcard-product">
-      <div className="postcard-stage relative overflow-hidden">
+      <div className="postcard-stage relative">
         <div className="postcard-face postcard-face--static">
           <PostcardFrontContent catchUp={catchUp} />
         </div>
@@ -397,7 +465,7 @@ export function PostcardBack(props: {
 }) {
   return (
     <article className="postcard-product">
-      <div className="postcard-stage relative overflow-hidden">
+      <div className="postcard-stage relative">
         <div className="postcard-face postcard-face--static">
           <PostcardBackContent {...props} />
         </div>

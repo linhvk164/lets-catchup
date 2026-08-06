@@ -9,6 +9,8 @@ export {
 export {
   StampArea,
   PostcardDivider,
+  PostcardWriteLine,
+  PostcardWriteLines,
   RecipientList,
   MessageArea,
   EditableTitle,

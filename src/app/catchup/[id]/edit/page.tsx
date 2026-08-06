@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { SiteHeader } from "@/components/SiteHeader";
 import { FlippablePostcard } from "@/components/postcard";
 import { PostcardPreviewModal } from "@/components/PostcardPreviewModal";
 import {
@@ -55,7 +54,6 @@ export default function EditPostcardPage() {
   if (!catchUp) {
     return (
       <div className="flex min-h-full flex-col">
-        <SiteHeader compact />
         <main className="mx-auto w-full max-w-lg flex-1 px-5 py-16 text-center">
           <h1 className="font-display text-3xl text-ink">Invitation not found</h1>
           <p className="mt-3 text-sm text-ink-soft">
@@ -87,12 +85,14 @@ function EditPostcardForm({
 }) {
   const router = useRouter();
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [flipped, setFlipped] = useState(false);
 
   const { previewCatchUp, form } = usePostcardInviteForm({
     mode: "edit",
     initialCatchUp,
     submitLabel: "Save postcard invite",
     onCancel,
+    onRevealSide: (side) => setFlipped(side === "back"),
     onSubmit: (values) => {
       const next = buildDraftCatchUp(values, {
         id: initialCatchUp.id,
@@ -114,7 +114,6 @@ function EditPostcardForm({
 
   return (
     <div className="flex min-h-full flex-col">
-      <SiteHeader compact />
       <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8 sm:py-10">
         <div className="animate-fade-rise max-w-xl">
           <h1 className="font-display text-3xl text-ink sm:text-4xl">
@@ -137,10 +136,15 @@ function EditPostcardForm({
           </Button>
         </div>
 
-        <div className="mt-8 grid gap-10 lg:grid-cols-2">
-          <aside className="hidden lg:block">
-            <div className="sticky top-6 z-10 self-start">
-              <FlippablePostcard catchUp={previewCatchUp} large />
+        <div className="mt-8 grid gap-10 lg:grid-cols-2 lg:items-start">
+          <aside className="hidden justify-center lg:flex">
+            <div className="sticky top-6 z-30 self-start overflow-visible">
+              <FlippablePostcard
+                catchUp={previewCatchUp}
+                large
+                flipped={flipped}
+                onFlipChange={setFlipped}
+              />
             </div>
           </aside>
           <div className="min-w-0">{form}</div>

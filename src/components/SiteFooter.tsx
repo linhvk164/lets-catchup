@@ -16,11 +16,19 @@ export function SiteFooter() {
   const pathname = usePathname();
   if (!shouldShowFooter(pathname)) return null;
 
+  const isHome = pathname === "/";
+
   return (
-    <footer className="mt-auto w-full px-5 pb-10 pt-16 sm:px-8 sm:pb-12 sm:pt-20">
+    <footer
+      className={`relative z-40 mt-auto w-full shrink-0 px-5 sm:px-8 ${
+        isHome
+          ? "landing-enter landing-enter--footer pb-8 pt-4 sm:pb-10 sm:pt-6 lg:pb-3 lg:pt-2"
+          : "pb-6 pt-6 sm:pb-10 sm:pt-12 lg:pb-12 lg:pt-16"
+      }`}
+    >
       <nav
         aria-label="Site"
-        className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] leading-relaxed text-ink-soft/70 sm:text-[13px]"
+        className="mx-auto flex max-w-3xl flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-[12px] leading-relaxed text-ink-soft/80 sm:text-[13px]"
       >
         <span>
           Created by{" "}

@@ -7,6 +7,7 @@ import { PhotoPicker } from "@/components/PhotoPicker";
 import { PostcardPreviewModal } from "@/components/PostcardPreviewModal";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { FlippablePostcard } from "@/components/postcard";
+import { INVITE_TITLE_PLACEHOLDER } from "@/components/PostcardInviteForm";
 import { Button, Field, FieldActionButton, TextArea } from "@/components/ui";
 import {
   getMessageFont,
@@ -15,8 +16,13 @@ import {
   type MessageFontId,
 } from "@/lib/message-fonts";
 import { encodeCatchUp } from "@/lib/storage";
+import {
+  isPostcardMessageTooLong,
+  MESSAGE_TOO_LONG_HINT,
+} from "@/lib/postcard-copy";
 import type { ParsedAvailability } from "@/lib/availability";
 import type { CatchUp, PostcardPhoto, TimezoneInfo } from "@/lib/types";
+import { ConfettiBurst } from "@/components/ConfettiBurst";
 
 export type CreateFlowStep = 1 | 2 | 3;
 
@@ -212,7 +218,7 @@ export function MobileCreateStudio({
               <Field
                 label="Postcard title"
                 name="title"
-                placeholder="Let's Catch-up ᯓ 💌"
+                placeholder={INVITE_TITLE_PLACEHOLDER}
                 value={fields.title}
                 onChange={(e) => fields.setTitle(e.target.value)}
                 requiredMark
@@ -237,7 +243,11 @@ export function MobileCreateStudio({
                 placeholder="Can't wait to catch up!"
                 value={fields.message}
                 onChange={(e) => fields.setMessage(e.target.value)}
-                hint="Optional note on the back of the postcard"
+                hint={
+                  isPostcardMessageTooLong(fields.message)
+                    ? MESSAGE_TOO_LONG_HINT
+                    : "Optional note on the back of the postcard"
+                }
                 rows={1}
                 className="!min-h-0 resize-none py-3"
                 style={liveFontStyle}
@@ -309,7 +319,7 @@ export function MobileCreateStudio({
               </p>
             </div>
 
-            <div className="mx-auto mb-6 w-full max-w-[16rem]">
+            <div className="mx-auto mb-6 flex w-full justify-center">
               <FlippablePostcard catchUp={catchUp} large />
             </div>
 
@@ -347,19 +357,20 @@ export function MobileCreateStudio({
       ) : null}
 
       {step === 3 && finished ? (
-        <div className="mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-10 pt-5">
-          <div className="mb-6 text-center">
+        <div className="relative mx-auto flex w-full max-w-lg flex-1 flex-col px-5 pb-10 pt-5">
+          <ConfettiBurst active />
+          <div className="mb-6 animate-fade-rise text-center">
             <h1 className="font-display text-3xl text-ink">Ready to share</h1>
             <p className="mt-2 text-sm text-ink-soft">
               Send this postcard to your friends.
             </p>
           </div>
 
-          <div className="mx-auto w-full max-w-[20rem]">
+          <div className="postcard-celebrate-enter mx-auto flex w-full justify-center">
             <FlippablePostcard catchUp={finished.catchUp} large />
           </div>
 
-          <div className="mt-6 flex flex-col gap-2.5">
+          <div className="mt-6 flex flex-col gap-2.5 animate-fade-rise">
             <Button
               type="button"
               className="w-full py-3.5 text-base"

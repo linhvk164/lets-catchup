@@ -14,11 +14,13 @@ export function TimezonePicker({
   onChange,
   error,
   required,
+  onFocus,
 }: {
   value: TimezoneInfo;
   onChange: (info: TimezoneInfo) => void;
   error?: string;
   required?: boolean;
+  onFocus?: () => void;
 }) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -49,7 +51,12 @@ export function TimezonePicker({
   const display = formatTimezoneResult(value);
 
   return (
-    <div ref={rootRef} className="space-y-2">
+    <div
+      ref={rootRef}
+      className="space-y-2"
+      onFocusCapture={() => onFocus?.()}
+      onPointerDown={() => onFocus?.()}
+    >
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium text-ink">
           Timezone

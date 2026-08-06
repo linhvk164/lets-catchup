@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, ViewTransition } from "react";
+import { useEffect, useState, ViewTransition } from "react";
 import { InteractivePostcard } from "@/components/postcard/InteractivePostcard";
 import {
   PostcardBackContent,
@@ -89,6 +89,15 @@ const demoSlot: MeetingSlot = {
  */
 export function LandingHeroPostcard() {
   const [flipped, setFlipped] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
 
   function flip() {
     setFlipped((v) => !v);
@@ -96,8 +105,12 @@ export function LandingHeroPostcard() {
 
   return (
     <ViewTransition name="opa-postcard" share="morph" default="none">
-      <div className="postcard-product postcard-product--large landing-postcard">
-        <InteractivePostcard restingRotateZ={-4} ambientIdle>
+      <div className="postcard-product postcard-product--large landing-postcard overflow-visible">
+        <InteractivePostcard
+          restingRotateZ={isMobile ? -1.5 : -4}
+          maxTiltMobile={2}
+          ambientIdle
+        >
           <div
             className="postcard-stage w-full cursor-pointer"
             onClick={flip}
@@ -110,7 +123,9 @@ export function LandingHeroPostcard() {
             role="button"
             tabIndex={0}
             aria-label={
-              flipped ? "Flip to front of postcard" : "Flip to back of postcard"
+              flipped
+                ? "Flip to front of postcard"
+                : "Flip to back of postcard"
             }
           >
             <div className={`postcard-flipper ${flipped ? "is-flipped" : ""}`}>
@@ -131,13 +146,11 @@ export function LandingHeroPostcard() {
         <button
           type="button"
           onClick={flip}
-          className="mt-3 inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-ink-soft transition hover:text-ink"
-          aria-label={
-            flipped ? "Flip to front of postcard" : "Flip to back of postcard"
-          }
+          className="landing-enter landing-enter--flip mt-3 inline-flex w-full items-center justify-center gap-2 text-sm font-medium text-ink-soft transition hover:text-ink sm:mt-4"
+          aria-label="Click or tap to flip postcard"
         >
           <span aria-hidden>↻</span>
-          {flipped ? "Flip to front" : "Flip to back"}
+          click/tap to flip
         </button>
       </div>
     </ViewTransition>

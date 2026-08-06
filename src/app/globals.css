@@ -182,6 +182,9 @@ body > * {
   --postcard-max-w: 36rem; /* 576px */
   /* Header, title, padding, actions, flip control */
   --postcard-vh-reserve: 16rem;
+  position: relative;
+  z-index: 30;
+  overflow: visible;
   width: min(
     100%,
     var(--postcard-max-w),
@@ -196,9 +199,32 @@ body > * {
   --postcard-vh-reserve: 9rem;
 }
 
+/*
+  Hero / large postcard — same physical size on landing + create.
+  Width is viewport-based (not parent 100%) so layout columns can't
+  make the two pages render different card sizes.
+*/
 .postcard-product--large {
-  --postcard-max-w: 42rem; /* 672px */
-  --postcard-vh-reserve: 14rem;
+  --postcard-max-w: 30rem;
+  --postcard-vh-reserve: 20rem;
+  width: min(
+    var(--postcard-max-w),
+    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15),
+    calc(100vw - 2.5rem)
+  );
+}
+
+@media (max-width: 1023px) and (max-height: 780px) {
+  .postcard-product--large {
+    --postcard-vh-reserve: 18rem;
+    --postcard-max-w: 26rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .postcard-product--large {
+    --postcard-vh-reserve: 12rem;
+  }
 }
 
 .postcard-product--viewport {
@@ -228,6 +254,7 @@ body > * {
   width: 100%;
   aspect-ratio: 3 / 4.15;
   perspective: 1400px;
+  overflow: visible;
 }
 
 .postcard-flipper {
@@ -251,8 +278,10 @@ body > * {
   transform-style: flat;
   border-radius: 0;
   background: #ffffff;
-  border: 1px solid rgba(30, 51, 64, 0.1);
+  border: none;
   box-shadow: var(--shadow);
+  container-type: inline-size;
+  container-name: postcard;
 }
 
 .postcard-face--static {
@@ -280,13 +309,15 @@ body > * {
   perspective-origin: 50% 45%;
   transform-origin: 50% 50%;
   will-change: transform;
+  overflow: visible;
+  z-index: 30;
 }
 
 .interactive-postcard.postcard-product {
   width: min(
-    100%,
     var(--postcard-max-w),
-    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15)
+    calc((100dvh - var(--postcard-vh-reserve)) * 3 / 4.15),
+    calc(100vw - 2.5rem)
   );
   margin-inline: auto;
 }
@@ -299,6 +330,7 @@ body > * {
   will-change: transform;
   transform: translateZ(0);
   border-radius: 0;
+  overflow: visible;
 }
 
 .interactive-postcard--static {
@@ -328,8 +360,8 @@ body > * {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 4.5rem;
-  height: 5.25rem;
+  width: 2.75rem;
+  height: 3.25rem;
   border: 1.5px dashed rgba(30, 51, 64, 0.28);
   background:
     repeating-linear-gradient(
@@ -342,23 +374,84 @@ body > * {
   flex-shrink: 0;
 }
 
+@media (min-width: 640px) {
+  .postcard-stamp {
+    width: 4.5rem;
+    height: 5.25rem;
+  }
+}
+
 .postcard-stamp__label {
-  font-size: 0.65rem;
+  font-size: 0.55rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
   color: rgba(30, 51, 64, 0.28);
   font-weight: 500;
 }
 
+@media (min-width: 640px) {
+  .postcard-stamp__label {
+    font-size: 0.65rem;
+  }
+}
+
 .postcard-divider-h {
-  width: 100%;
   height: 1px;
-  background: rgba(30, 51, 64, 0.18);
+  width: 100%;
+  background: rgba(30, 51, 64, 0.12);
+}
+
+.postcard-write-line {
+  display: block;
+  width: 100%;
+  max-width: 14rem;
+  height: 1.4em;
+  border-bottom: 1px solid rgba(30, 51, 64, 0.28);
+}
+
+.postcard-write-line--title {
+  height: 1.85em;
+  max-width: 11rem;
+}
+
+.postcard-write-line--inline {
+  display: inline-block;
+  width: 6.5rem;
+  max-width: 55%;
+  height: 1.05em;
+  vertical-align: baseline;
+  margin-left: 0.2rem;
+}
+
+.postcard-write-lines {
+  display: flex;
+  flex-direction: column;
+  /* Match blank title → name spacing on the invite block */
+  gap: 0.75rem;
+  width: 100%;
+  padding-top: 0.15rem;
+}
+
+.postcard-write-lines .postcard-write-line {
+  max-width: none;
+}
+
+.postcard-meta {
+  font-size: 0.875rem; /* 14px — same at every breakpoint */
+  line-height: 1.4;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.postcard-meta--medium {
+  font-weight: 500;
 }
 
 .postcard-recipients__label {
-  font-size: 0.75rem;
-  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  color: var(--ink);
+  font-weight: 400;
   margin-bottom: 0.35rem;
 }
 
@@ -372,9 +465,10 @@ body > * {
 }
 
 .postcard-recipient {
-  font-size: 0.95rem;
-  line-height: 1.3;
+  font-size: 0.875rem;
+  line-height: 1.4;
   color: var(--ink);
+  font-weight: 500;
   background: transparent;
   border: none;
   padding: 0;
@@ -389,21 +483,45 @@ body > * {
   color: var(--ocean-deep);
 }
 
+.postcard-message-shell {
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .postcard-message {
   display: block;
   width: 100%;
   color: var(--ink);
-  font-size: clamp(1.3rem, 3.8vw, 1.65rem);
-  line-height: 1.35;
+  /* Fallback before JS fit — viewport tiers match landing + create */
+  font-size: 1.0625rem; /* 17px */
+  line-height: 1.45;
+  white-space: pre-wrap;
   text-align: left;
   resize: none;
   border: none;
   background: transparent;
-  padding: 0.15rem 0.2rem;
+  padding: 0.1rem 0.15rem 0.25rem;
   margin: 0;
   outline: none;
   overflow: hidden;
   field-sizing: content;
+}
+
+@media (min-width: 640px) {
+  .postcard-message {
+    font-size: 1.375rem; /* 22px */
+  }
+}
+
+@media (min-width: 1024px) {
+  .postcard-message {
+    font-size: 2rem; /* 32px */
+  }
+}
+
+.postcard-message p {
+  margin: 0;
 }
 
 .postcard-message--edit {
@@ -424,7 +542,8 @@ body > * {
 .postcard-title-edit {
   display: block;
   width: 100%;
-  font-size: clamp(1.2rem, 3.8vw, 1.5rem);
+  /* Match display titles: text-lg / sm:text-2xl / lg:text-3xl */
+  font-size: 1.125rem;
   line-height: 1.2;
   letter-spacing: -0.02em;
   color: var(--ink);
@@ -435,6 +554,18 @@ body > * {
   outline: none;
   border-radius: 2px;
   transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+@media (min-width: 640px) {
+  .postcard-title-edit {
+    font-size: 1.5rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .postcard-title-edit {
+    font-size: 1.875rem;
+  }
 }
 
 .postcard-title-edit:hover {
@@ -453,7 +584,7 @@ body > * {
 ::view-transition-group(.morph) {
   animation-duration: 0.6s;
   animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
-  z-index: 10;
+  z-index: 40;
 }
 
 ::view-transition-image-pair(.morph) {
@@ -478,22 +609,132 @@ body > * {
   }
 }
 
-.landing-postcard {
-  animation: landing-postcard-enter 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+/* Landing load-in: staggered rise into place */
+.landing-bg-settle {
+  animation: landing-bg-settle 1.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-/* Opacity-only so it doesn't fight resting rotateZ / view transitions. */
-@keyframes landing-postcard-enter {
+@keyframes landing-bg-settle {
   from {
     opacity: 0;
+    transform: scale(1.58);
   }
   to {
     opacity: 1;
+    transform: scale(1.45);
+  }
+}
+
+.landing-enter {
+  animation: landing-fade-rise 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.landing-enter--logo {
+  animation-delay: 0.06s;
+}
+
+.landing-enter--slogan {
+  animation-delay: 0.2s;
+}
+
+.landing-enter--cta {
+  animation-delay: 0.52s;
+}
+
+.landing-enter--cta-mobile {
+  animation-delay: 0.68s;
+}
+
+.landing-enter--flip {
+  animation-delay: 0.78s;
+}
+
+.landing-enter--footer {
+  animation-delay: 0.9s;
+}
+
+@keyframes landing-fade-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.landing-postcard {
+  animation: landing-postcard-enter 1.05s cubic-bezier(0.22, 1, 0.36, 1) 0.28s
+    both;
+}
+
+@keyframes landing-postcard-enter {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 4rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .landing-bg-settle,
+  .landing-enter,
   .landing-postcard {
     animation: none;
+  }
+}
+
+/* Finished postcard: soft rise into place */
+.postcard-celebrate-enter {
+  animation: postcard-celebrate-enter 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes postcard-celebrate-enter {
+  from {
+    opacity: 0;
+    transform: translateY(2.75rem) scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.confetti-piece {
+  position: absolute;
+  top: -12px;
+  animation-name: confetti-fall;
+  animation-timing-function: cubic-bezier(0.22, 0.7, 0.35, 1);
+  animation-fill-mode: forwards;
+  will-change: transform, opacity;
+}
+
+@keyframes confetti-fall {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -8vh, 0) rotate(0deg);
+  }
+  8% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--confetti-drift, 0px), 105vh, 0)
+      rotate(var(--confetti-rotate, 360deg));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .postcard-celebrate-enter {
+    animation: none;
+  }
+
+  .confetti-piece {
+    animation: none;
+    display: none;
   }
 }

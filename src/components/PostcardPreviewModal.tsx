@@ -50,13 +50,15 @@ export function PostcardPreviewModal({
         aria-label="Close preview"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-[20rem] sm:max-w-[22rem]">
+      <div className="relative z-10 flex w-full justify-center">
         <FlippablePostcard
           catchUp={catchUp}
           bestSlot={bestSlot}
           isConfirmed={isConfirmed}
           moreCount={moreCount}
           initialSide="back"
+          large
+          onClose={onClose}
           onViewMore={onViewMore}
           onAddParticipant={onAddParticipant}
           onEditParticipant={onEditParticipant}
@@ -68,7 +70,6 @@ export function PostcardPreviewModal({
           onUpdateTitle={onUpdateTitle}
           onUpdateMessage={onUpdateMessage}
           copied={copied}
-          fitViewport
         />
       </div>
     </div>

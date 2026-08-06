@@ -78,7 +78,7 @@ export function InteractivePostcard({
   const orientationBound = useRef(false);
 
   const applyFrame = useCallback(
-    (idleSwayZ = 0, idleSwayX = 0) => {
+    (idleSwayZ = 0, idleSwayX = 0, idleSwayY = 0) => {
       const root = rootRef.current;
       const frame = frameRef.current;
       const { rx, ry } = current.current;
@@ -89,7 +89,7 @@ export function InteractivePostcard({
         root.style.transform = `rotateZ(${rotZ.toFixed(2)}deg)`;
       }
       if (frame) {
-        frame.style.transform = `rotateX(${(rx + idleSwayX).toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg)`;
+        frame.style.transform = `rotateX(${(rx + idleSwayX).toFixed(2)}deg) rotateY(${(ry + idleSwayY).toFixed(2)}deg)`;
         frame.style.boxShadow = "none";
       }
     },
@@ -104,10 +104,11 @@ export function InteractivePostcard({
     const t = performance.now() / 1000;
     const idle =
       ambientIdle && !reducedMotion && mode.current === "idle" && !active.current;
-    const idleSwayZ = idle ? Math.sin(t * 0.65) * 0.7 : 0;
-    const idleSwayX = idle ? Math.sin(t * 0.5 + 0.8) * 0.35 : 0;
+    const idleSwayZ = idle ? Math.sin(t * 0.85) * 2.2 : 0;
+    const idleSwayX = idle ? Math.sin(t * 0.7 + 0.8) * 1.4 : 0;
+    const idleSwayY = idle ? Math.sin(t * 0.55 + 1.4) * 1.8 : 0;
 
-    applyFrame(idleSwayZ, idleSwayX);
+    applyFrame(idleSwayZ, idleSwayX, idleSwayY);
 
     const settled =
       Math.abs(target.current.rx - current.current.rx) < 0.02 &&
@@ -119,7 +120,7 @@ export function InteractivePostcard({
       rafId.current = 0;
       current.current.rx = target.current.rx;
       current.current.ry = target.current.ry;
-      applyFrame(0, 0);
+      applyFrame(0, 0, 0);
     }
   }, [ambientIdle, applyFrame, reducedMotion]);
 

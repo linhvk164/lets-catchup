@@ -2,19 +2,16 @@ export const MESSAGE_FONTS = [
   { id: "schoolbell", label: "Schoolbell", cssVar: "--font-schoolbell" },
   { id: "sedgwick-ave", label: "Sedgwick Ave", cssVar: "--font-sedgwick-ave" },
   {
-    id: "sue-ellen-francisco",
-    label: "Sue Ellen Francisco",
-    cssVar: "--font-sue-ellen-francisco",
-  },
-  {
     id: "birthstone-bounce",
     label: "Birthstone Bounce",
     cssVar: "--font-birthstone-bounce",
   },
+  { id: "gaegu", label: "Gaegu", cssVar: "--font-gaegu" },
+  { id: "gamja-flower", label: "Gamja Flower", cssVar: "--font-gamja-flower" },
   {
-    id: "butterfly-kids",
-    label: "Butterfly Kids",
-    cssVar: "--font-butterfly-kids",
+    id: "homemade-apple",
+    label: "Homemade Apple",
+    cssVar: "--font-homemade-apple",
   },
 ] as const;
 

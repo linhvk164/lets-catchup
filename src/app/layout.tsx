@@ -1,12 +1,13 @@
 import type { Metadata, Viewport } from "next";
 import {
   Birthstone_Bounce,
-  Butterfly_Kids,
   Fraunces,
+  Gaegu,
+  Gamja_Flower,
+  Homemade_Apple,
   Outfit,
   Schoolbell,
   Sedgwick_Ave,
-  Sue_Ellen_Francisco,
 } from "next/font/google";
 import { SiteShell } from "@/components/SiteShell";
 import "./globals.css";
@@ -37,13 +38,6 @@ const sedgwickAve = Sedgwick_Ave({
   display: "swap",
 });
 
-const sueEllenFrancisco = Sue_Ellen_Francisco({
-  variable: "--font-sue-ellen-francisco",
-  weight: "400",
-  subsets: ["latin"],
-  display: "swap",
-});
-
 const birthstoneBounce = Birthstone_Bounce({
   variable: "--font-birthstone-bounce",
   weight: "400",
@@ -51,8 +45,22 @@ const birthstoneBounce = Birthstone_Bounce({
   display: "swap",
 });
 
-const butterflyKids = Butterfly_Kids({
-  variable: "--font-butterfly-kids",
+const gaegu = Gaegu({
+  variable: "--font-gaegu",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const gamjaFlower = Gamja_Flower({
+  variable: "--font-gamja-flower",
+  weight: "400",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const homemadeApple = Homemade_Apple({
+  variable: "--font-homemade-apple",
   weight: "400",
   subsets: ["latin"],
   display: "swap",
@@ -76,6 +84,9 @@ export const metadata: Metadata = {
       "Send a postcard invite and find a time that works across time zones.",
     type: "website",
   },
+  icons: {
+    icon: [{ url: "/images/logo/logo-submark.svg", type: "image/svg+xml" }],
+  },
 };
 
 export const viewport: Viewport = {
@@ -89,9 +100,10 @@ const fontVariables = [
   outfit.variable,
   schoolbell.variable,
   sedgwickAve.variable,
-  sueEllenFrancisco.variable,
   birthstoneBounce.variable,
-  butterflyKids.variable,
+  gaegu.variable,
+  gamjaFlower.variable,
+  homemadeApple.variable,
 ].join(" ");
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

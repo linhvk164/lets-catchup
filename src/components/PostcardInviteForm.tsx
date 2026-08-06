@@ -14,6 +14,10 @@ import {
   type MessageFontId,
 } from "@/lib/message-fonts";
 import { getDefaultPhoto } from "@/lib/photos";
+import {
+  isPostcardMessageTooLong,
+  MESSAGE_TOO_LONG_HINT,
+} from "@/lib/postcard-copy";
 import { detectTimezone } from "@/lib/timezone";
 import type {
   CatchUp,
@@ -22,7 +26,7 @@ import type {
   TimezoneInfo,
 } from "@/lib/types";
 
-export const DEFAULT_INVITE_TITLE = "Let's Catch-up ᯓ 💌";
+export const INVITE_TITLE_PLACEHOLDER = "Coffee catch-up";
 export const DEFAULT_DURATION = 30;
 
 export type InviteFormValues = {
@@ -76,7 +80,7 @@ export function buildDraftCatchUp(
 
   return {
     id: options?.id ?? options?.existing?.id ?? "draft",
-    title: values.title.trim() || DEFAULT_INVITE_TITLE,
+    title: values.title.trim(),
     message: trimmedMessage || undefined,
     messageFont: values.messageFont,
     duration: options?.existing?.duration ?? DEFAULT_DURATION,
@@ -95,6 +99,7 @@ export function usePostcardInviteForm({
   submitLabel,
   formId = "postcard-invite-form",
   mobileStickySubmit = false,
+  onRevealSide,
 }: {
   mode: "create" | "edit";
   initialCatchUp?: CatchUp;
@@ -104,15 +109,15 @@ export function usePostcardInviteForm({
   formId?: string;
   /** When true, in-form submit is desktop-only; page renders a mobile sticky bar. */
   mobileStickySubmit?: boolean;
+  /** Flip the live postcard preview to the face that shows this field. */
+  onRevealSide?: (side: "front" | "back") => void;
 }) {
   const creator = initialCatchUp ? creatorFromCatchUp(initialCatchUp) : undefined;
 
   const [name, setName] = useState(
     () => (creator?.name && creator.name !== "You" ? creator.name : "") || ""
   );
-  const [title, setTitle] = useState(
-    () => initialCatchUp?.title ?? DEFAULT_INVITE_TITLE
-  );
+  const [title, setTitle] = useState(() => initialCatchUp?.title ?? "");
   const [message, setMessage] = useState(() => initialCatchUp?.message ?? "");
   const [messageFont, setMessageFont] = useState<MessageFontId>(() =>
     resolveMessageFontId(initialCatchUp?.messageFont)
@@ -249,8 +254,9 @@ export function usePostcardInviteForm({
       <Field
         label="Postcard title"
         name="title"
-        placeholder="Let's Catch-up ᯓ 💌"
+        placeholder={INVITE_TITLE_PLACEHOLDER}
         value={title}
+        onFocus={() => onRevealSide?.("front")}
         onChange={(e) => {
           setTitle(e.target.value);
           if (submitted) {
@@ -272,6 +278,7 @@ export function usePostcardInviteForm({
         name="name"
         placeholder="Your name"
         value={name}
+        onFocus={() => onRevealSide?.("front")}
         onChange={(e) => {
           setName(e.target.value);
           if (submitted) {
@@ -291,8 +298,13 @@ export function usePostcardInviteForm({
         name="message"
         placeholder="Optional note for the back of the postcard"
         value={message}
+        onFocus={() => onRevealSide?.("back")}
         onChange={(e) => setMessage(e.target.value)}
-        hint="Leave blank to skip a handwritten note"
+        hint={
+          isPostcardMessageTooLong(message)
+            ? MESSAGE_TOO_LONG_HINT
+            : "Leave blank to skip a handwritten note"
+        }
         rows={1}
         className="!min-h-0 resize-none py-3"
         style={{ fontFamily: messageFontFamily(messageFont) }}
@@ -300,7 +312,10 @@ export function usePostcardInviteForm({
           <FieldActionButton
             title={`Font: ${getMessageFont(messageFont).label}. Click to switch.`}
             aria-label={`Switch handwriting font. Current: ${getMessageFont(messageFont).label}`}
-            onClick={() => setMessageFont((current) => nextMessageFontId(current))}
+            onClick={() => {
+              onRevealSide?.("back");
+              setMessageFont((current) => nextMessageFontId(current));
+            }}
           >
             <span aria-hidden>↻</span>
             Font:{" "}
@@ -314,6 +329,7 @@ export function usePostcardInviteForm({
         onChange={setTimezone}
         required
         error={submitted ? errors.timezone : undefined}
+        onFocus={() => onRevealSide?.("back")}
       />
 
       <div className="space-y-2">
@@ -322,6 +338,7 @@ export function usePostcardInviteForm({
           name="availability"
           placeholder="Weekdays after work, weekends anytime, except August 20."
           value={availability}
+          onFocus={() => onRevealSide?.("back")}
           onChange={(e) => {
             setAvailability(e.target.value);
             if (submitted) {
@@ -338,19 +355,31 @@ export function usePostcardInviteForm({
           rows={2}
         />
         {parsed && parsed.debugLines.length > 0 ? (
-          <AvailabilityInterpretation
-            parsed={parsed}
-            onChangeAvailability={(value) => {
-              setAvailability(value);
-              if (submitted) {
-                setErrors((er) => ({ ...er, availability: undefined }));
-              }
-            }}
-          />
+          <div
+            onFocusCapture={() => onRevealSide?.("back")}
+            onPointerDown={() => onRevealSide?.("back")}
+          >
+            <AvailabilityInterpretation
+              parsed={parsed}
+              onChangeAvailability={(value) => {
+                setAvailability(value);
+                if (submitted) {
+                  setErrors((er) => ({ ...er, availability: undefined }));
+                }
+              }}
+            />
+          </div>
         ) : null}
       </div>
 
-      <PhotoPicker value={photo} onChange={setPhoto} />
+      <PhotoPicker
+        value={photo}
+        onChange={(next) => {
+          onRevealSide?.("front");
+          setPhoto(next);
+        }}
+        onInteract={() => onRevealSide?.("front")}
+      />
 
       <div
         className={

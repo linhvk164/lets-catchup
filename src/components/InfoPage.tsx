@@ -1,6 +1,4 @@
 import type { ReactNode } from "react";
-import Link from "next/link";
-import { LinkArrow } from "@/components/ExternalLink";
 
 /** Shared readable layout for About, Privacy, and similar informational pages. */
 export function InfoPage({
@@ -14,15 +12,8 @@ export function InfoPage({
 }) {
   return (
     <div className="flex min-h-full flex-col">
-      <main className="mx-auto w-full max-w-[46rem] flex-1 px-5 pb-8 pt-10 sm:px-8 sm:pt-14">
-        <Link
-          href="/"
-          className="inline-flex items-baseline gap-0.5 text-sm text-ink-soft underline-offset-2 transition hover:text-ink hover:underline"
-        >
-          <LinkArrow direction="back" />
-          <span>Let&apos;s Catch up</span>
-        </Link>
-        <h1 className="mt-6 font-display text-3xl tracking-tight text-ink sm:text-4xl">
+      <main className="mx-auto w-full max-w-[46rem] flex-1 px-5 pb-8 pt-6 sm:px-8 sm:pt-8">
+        <h1 className="font-display text-3xl tracking-tight text-ink sm:text-4xl">
           {title}
         </h1>
         {updated ? (
