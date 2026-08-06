@@ -1,8 +1,11 @@
+import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { customAlphabet } from "nanoid";
-import type { CatchUp } from "./types";
+import type { CatchUp, Participant } from "./types";
 
 const STORAGE_PREFIX = "lets-catchup:";
 const VIEWER_PREFIX = "lets-catchup:viewer:";
+/** Prefix marks LZ-compressed share payloads (vs legacy raw base64url). */
+const COMPRESSED_PREFIX = "z.";
 const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
 
 export type ViewerRole = "creator" | "invitee";
@@ -69,19 +72,48 @@ export function loadCatchUp(id: string): CatchUp | null {
   }
 }
 
-/** Encode catch-up for share links. Strip local-only photo data URLs to keep links small. */
-export function encodeCatchUp(catchUp: CatchUp): string {
-  const shareable: CatchUp = {
-    ...catchUp,
-    photo: catchUp.photo
-      ? {
-          src: catchUp.photo.src,
-          caption: catchUp.photo.caption,
-          credit: catchUp.photo.credit,
-        }
-      : undefined,
+/** Drop empty / default fields so share URLs stay smaller. */
+function leanParticipant(p: Participant): Participant {
+  const lean: Participant = {
+    id: p.id,
+    name: p.name,
+    timezone: p.timezone,
+    cityLabel: p.cityLabel,
+    availabilityText: p.availabilityText,
+    rules: p.rules,
+    exceptions: p.exceptions?.length ? p.exceptions : [],
   };
-  const json = JSON.stringify(shareable);
+  if (p.countryCode) lean.countryCode = p.countryCode;
+  if (p.countryLabel) lean.countryLabel = p.countryLabel;
+  if (p.flagEmoji) lean.flagEmoji = p.flagEmoji;
+  if (p.preferences?.length) lean.preferences = p.preferences;
+  if (p.flexibility) lean.flexibility = p.flexibility;
+  if (p.isCreator) lean.isCreator = true;
+  return lean;
+}
+
+function toShareableCatchUp(catchUp: CatchUp): CatchUp {
+  const shareable: CatchUp = {
+    id: catchUp.id,
+    title: catchUp.title,
+    duration: catchUp.duration,
+    createdAt: catchUp.createdAt,
+    participants: catchUp.participants.map(leanParticipant),
+  };
+  if (catchUp.message) shareable.message = catchUp.message;
+  if (catchUp.messageFont) shareable.messageFont = catchUp.messageFont;
+  if (catchUp.selectedSlotId) shareable.selectedSlotId = catchUp.selectedSlotId;
+  if (catchUp.photo) {
+    shareable.photo = {
+      src: catchUp.photo.src,
+      caption: catchUp.photo.caption,
+      credit: catchUp.photo.credit,
+    };
+  }
+  return shareable;
+}
+
+function encodeLegacyBase64Url(json: string): string {
   const bytes = new TextEncoder().encode(json);
   let binary = "";
   bytes.forEach((b) => {
@@ -93,13 +125,47 @@ export function encodeCatchUp(catchUp: CatchUp): string {
     .replace(/=+$/, "");
 }
 
-export function decodeCatchUp(encoded: string): CatchUp | null {
+function decodeLegacyBase64Url(encoded: string): string | null {
   try {
     const padded = encoded.replace(/-/g, "+").replace(/_/g, "/");
-    const pad = padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
+    const pad =
+      padded.length % 4 === 0 ? "" : "=".repeat(4 - (padded.length % 4));
     const binary = atob(padded + pad);
     const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
-    const json = new TextDecoder().decode(bytes);
+    return new TextDecoder().decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Encode catch-up for share links.
+ * Strips local-only photo data URLs, leans empty fields, LZ-compresses.
+ */
+export function encodeCatchUp(catchUp: CatchUp): string {
+  const json = JSON.stringify(toShareableCatchUp(catchUp));
+  const compressed = compressToEncodedURIComponent(json);
+  if (compressed) return `${COMPRESSED_PREFIX}${compressed}`;
+  return encodeLegacyBase64Url(json);
+}
+
+export function decodeCatchUp(encoded: string): CatchUp | null {
+  if (!encoded) return null;
+
+  try {
+    let json: string | null = null;
+    if (encoded.startsWith(COMPRESSED_PREFIX)) {
+      json = decompressFromEncodedURIComponent(
+        encoded.slice(COMPRESSED_PREFIX.length)
+      );
+    } else {
+      // Legacy raw base64url, or bare lz-string without prefix
+      json = decodeLegacyBase64Url(encoded);
+      if (!json) {
+        json = decompressFromEncodedURIComponent(encoded);
+      }
+    }
+    if (!json) return null;
     return JSON.parse(json) as CatchUp;
   } catch {
     return null;
@@ -110,7 +176,35 @@ export function buildSharePath(catchUp: CatchUp): string {
   return `/catchup/${catchUp.id}?p=${encodeCatchUp(catchUp)}`;
 }
 
-export function resolveCatchUp(id: string, encoded?: string | null): CatchUp | null {
+/** Fields for Open Graph postcard preview (short query params). */
+export function getSharePreviewFields(catchUp: CatchUp): {
+  title: string;
+  from: string;
+  photo: string;
+} {
+  const creator =
+    catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
+  return {
+    title: catchUp.title?.trim() || "Let's Catchup",
+    from: creator?.name?.trim() || "A friend",
+    photo: catchUp.photo?.src || "/images/postcards/spanish-beach.jpg",
+  };
+}
+
+export function buildOgImagePath(catchUp: CatchUp): string {
+  const { title, from, photo } = getSharePreviewFields(catchUp);
+  const params = new URLSearchParams({
+    title,
+    from,
+    photo,
+  });
+  return `/api/og?${params.toString()}`;
+}
+
+export function resolveCatchUp(
+  id: string,
+  encoded?: string | null
+): CatchUp | null {
   const local = loadCatchUp(id);
   if (encoded) {
     const fromUrl = decodeCatchUp(encoded);
