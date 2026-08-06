@@ -35,13 +35,28 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
       />
 
       {photo?.credit ? (
-        <div className="postcard-layer-credit absolute inset-x-3 top-3 flex items-center gap-3 sm:inset-x-4 sm:top-4">
+        <div className="postcard-layer-credit absolute inset-x-3 top-3 z-[1] flex items-center gap-3 sm:inset-x-4 sm:top-4">
           <p className="shrink-0 text-[10px] tracking-[0.06em] text-white/90">
             {photo.credit}
           </p>
           <div className="h-px min-w-0 flex-1 bg-white/40" aria-hidden />
         </div>
       ) : null}
+
+      {/* Postage stamp — clipped slightly off the right edge */}
+      <div
+        className="postcard-layer-stamp pointer-events-none absolute bottom-8 -right-5 z-[2] w-[42%] max-w-[10rem] sm:bottom-10 sm:-right-6 sm:max-w-[11.5rem]"
+        aria-hidden
+      >
+        <Image
+          src="/images/stamps/stamp-texture.webp"
+          alt=""
+          width={552}
+          height={350}
+          className="h-auto w-full brightness-[0.72] contrast-[1.15]"
+          unoptimized
+        />
+      </div>
     </div>
   );
 }

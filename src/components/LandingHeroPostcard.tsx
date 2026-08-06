@@ -20,7 +20,7 @@ const demoCatchUp: CatchUp = {
   participants: [
     {
       id: "me",
-      name: "Me",
+      name: "me",
       timezone: "America/Toronto",
       cityLabel: "Toronto",
       flagEmoji: "🇨🇦",
