@@ -3,10 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { PhotoPicker } from "@/components/PhotoPicker";
 import { TimezonePicker } from "@/components/TimezonePicker";
-import { Button, Field, TextArea } from "@/components/ui";
+import { Button, Field, FieldActionButton, TextArea } from "@/components/ui";
 import { parseAvailabilityInput } from "@/lib/availability";
 import {
   getMessageFont,
+  messageFontFamily,
   nextMessageFontId,
   resolveMessageFontId,
   type MessageFontId,
@@ -184,8 +185,10 @@ export function usePostcardInviteForm({
               ...p,
               name: "You",
               availabilityText: availability,
-              rules: [],
-              exceptions: [],
+              // Keep parsed availability visible on the live canvas while drafting.
+              rules: availability.trim() ? p.rules : [],
+              exceptions: availability.trim() ? p.exceptions : [],
+              preferences: availability.trim() ? p.preferences : undefined,
             }
           : p
       ),
@@ -205,6 +208,32 @@ export function usePostcardInviteForm({
     if (!availability.trim()) next.availability = "Please share your availability";
     setErrors(next);
     return next;
+  }
+
+  function validateStep(step: 1 | 2 | 3) {
+    setSubmitted(true);
+    if (step === 1) {
+      const next = {
+        name: name.trim() ? undefined : "Please input your name",
+        title: title.trim() ? undefined : "Please input a postcard title",
+        timezone: timezone.timezone ? undefined : "Please choose a timezone",
+        availability: availability.trim()
+          ? undefined
+          : "Please share your availability",
+      };
+      setErrors(next);
+      return !next.name && !next.title && !next.timezone && !next.availability;
+    }
+    // Photo step always allowed (default featured photo is fine).
+    return true;
+  }
+
+  function submit() {
+    setSubmitted(true);
+    const next = validate();
+    if (Object.keys(next).length > 0) return false;
+    onSubmit(values);
+    return true;
   }
 
   const form = (
@@ -269,32 +298,18 @@ export function usePostcardInviteForm({
         value={message}
         onChange={(e) => setMessage(e.target.value)}
         hint="Leave blank to skip a handwritten note"
+        rows={3}
+        style={{ fontFamily: messageFontFamily(messageFont) }}
         labelAction={
-          <button
-            type="button"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white/70 px-2 py-1 text-xs font-medium text-ink-soft transition hover:border-ocean/30 hover:text-ink"
+          <FieldActionButton
             title={`Font: ${getMessageFont(messageFont).label}. Click to switch.`}
             aria-label={`Switch handwriting font. Current: ${getMessageFont(messageFont).label}`}
             onClick={() => setMessageFont((current) => nextMessageFontId(current))}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.75"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden
-            >
-              <path d="M4 20h5" />
-              <path d="M15 20h5" />
-              <path d="M6.5 20 12 4l5.5 16" />
-              <path d="M8.5 14h7" />
-            </svg>
-            Switch font
-          </button>
+            <span aria-hidden>↻</span>
+            Font:{" "}
+            <span className="text-ink">{getMessageFont(messageFont).label}</span>
+          </FieldActionButton>
         }
       />
 
@@ -324,6 +339,7 @@ export function usePostcardInviteForm({
           }}
           requiredMark
           error={submitted ? errors.availability : undefined}
+          className="min-h-28"
         />
         <div className="flex flex-wrap gap-2">
           {EXAMPLES.map((ex) => (
@@ -388,5 +404,36 @@ export function usePostcardInviteForm({
     </form>
   );
 
-  return { values, draftCatchUp, previewCatchUp, form, formId, submitLabel };
+  return {
+    values,
+    draftCatchUp,
+    previewCatchUp,
+    form,
+    formId,
+    submitLabel,
+    parsed,
+    errors,
+    submitted,
+    fields: {
+      name,
+      setName,
+      title,
+      setTitle,
+      message,
+      setMessage,
+      messageFont,
+      setMessageFont,
+      photo,
+      setPhoto,
+      timezone,
+      setTimezone,
+      availability,
+      setAvailability,
+    },
+    validate,
+    validateStep,
+    submit,
+    setErrors,
+    setSubmitted,
+  };
 }

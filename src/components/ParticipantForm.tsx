@@ -215,7 +215,7 @@ export function ParticipantEditorSheet({
   if (!open) return null;
 
   const titles = {
-    add: "Invite someone",
+    add: "Add a friend",
     edit: "Update details",
     join: "Join this catch-up",
   };
@@ -233,7 +233,7 @@ export function ParticipantEditorSheet({
         <ParticipantForm
           key={participant?.id ?? mode}
           initial={participant ? participantToDraft(participant) : undefined}
-          submitLabel={mode === "edit" ? "Save" : mode === "join" ? "Join" : "Invite"}
+          submitLabel={mode === "edit" ? "Save" : mode === "join" ? "Join" : "Add"}
           onSubmit={(draft) => {
             onSave(draft);
             onClose();

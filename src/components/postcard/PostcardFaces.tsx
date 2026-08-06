@@ -62,6 +62,10 @@ function AvailabilitySection({
   const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
   const hasFriends = catchUp.participants.length >= 2;
   const hasBestTime = hasFriends && Boolean(bestSlot);
+  const creatorAvailability = (
+    catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0]
+  )?.availabilityText?.trim();
+  const hasCreatorAvailability = Boolean(creatorAvailability);
 
   const availabilityHeading = (
     <div className="flex items-center justify-between gap-3">
@@ -93,7 +97,7 @@ function AvailabilitySection({
     );
 
     return (
-      <div className="space-y-2.5 text-left">
+      <div className="postcard-back-availability space-y-2.5 text-left">
         {availabilityHeading}
         <h3 className="font-display text-xl text-ink sm:text-2xl">
           {dateLabel}
@@ -129,14 +133,26 @@ function AvailabilitySection({
   }
 
   return (
-    <div className="space-y-2 text-left">
+    <div className="postcard-back-availability space-y-2 text-left">
       {availabilityHeading}
       <p className="text-sm leading-relaxed text-ink-soft">
-        {isCreating
-          ? "Once your friends share their availability, we'll find a time that works for everyone."
-          : hasFriends
-            ? "We're still looking for a time that works for everyone."
-            : "Your postcard is ready to share. Times will appear once everyone adds their availability."}
+        {isCreating ? (
+          hasCreatorAvailability ? (
+            <>
+              <span className="text-ocean" aria-hidden>
+                ✓{" "}
+              </span>
+              Availability added. Once your friends share their availability,
+              we&apos;ll find a time that works for everyone.
+            </>
+          ) : (
+            "Add your availability"
+          )
+        ) : hasFriends ? (
+          "We're still looking for a time that works for everyone."
+        ) : (
+          "Your postcard is ready to share. Times will appear once everyone adds their availability."
+        )}
       </p>
     </div>
   );
@@ -199,6 +215,7 @@ export function PostcardBackContent({
   moreCount = 0,
   onViewMore,
   onEditParticipant,
+  canEditParticipant,
   onViewAvailability,
   onUpdateTitle,
   onUpdateMessage,
@@ -210,6 +227,8 @@ export function PostcardBackContent({
   onViewMore?: () => void;
   onAddParticipant?: () => void;
   onEditParticipant?: (participant: Participant) => void;
+  /** When set, only matching participants get an edit affordance on their name. */
+  canEditParticipant?: (participant: Participant) => boolean;
   onViewAvailability?: () => void;
   onCopyLink?: () => void;
   onShare?: () => void;
@@ -237,67 +256,77 @@ export function PostcardBackContent({
         ? catchUp.participants.slice(1)
         : [];
 
+  function editHandler(person: Participant) {
+    if (!onEditParticipant) return undefined;
+    if (canEditParticipant && !canEditParticipant(person)) return undefined;
+    return onEditParticipant;
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden p-4 sm:p-5">
-      {/* Eyebrow rule */}
-      <div className="flex shrink-0 items-center gap-3">
-        <p className="shrink-0 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-soft">
-          Postcard
-        </p>
-        <div className="h-px min-w-0 flex-1 bg-ink/20" aria-hidden />
-      </div>
-
-      {/* Title + stamp */}
-      <div className="mt-3 flex shrink-0 items-start justify-between gap-3">
-        <div className="min-w-0 flex-1 text-left">
-          <EditableTitle
-            value={catchUp.title}
-            editable={Boolean(onUpdateTitle)}
-            onChange={onUpdateTitle}
-          />
-          {showFrom && creator ? (
-            <p className="mt-1 text-sm text-ink-soft">
-              from{" "}
-              <ParticipantNameButton
-                participant={creator}
-                onEdit={onEditParticipant}
-              />
-            </p>
-          ) : null}
-          <p className={`${showFrom ? "mt-0.5" : "mt-1"} text-sm text-ink-soft`}>
-            to{" "}
-            {recipientPeople.length > 0 ? (
-              <span>
-                {recipientPeople.map((person, i) => (
-                  <span key={person.id}>
-                    {i > 0 ? ", " : ""}
-                    <ParticipantNameButton
-                      participant={person}
-                      onEdit={onEditParticipant}
-                    />
-                  </span>
-                ))}
-              </span>
-            ) : null}
+      <div className="postcard-back-invite flex min-h-0 flex-col">
+        {/* Eyebrow rule */}
+        <div className="flex shrink-0 items-center gap-3">
+          <p className="shrink-0 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-soft">
+            Postcard
           </p>
+          <div className="h-px min-w-0 flex-1 bg-ink/20" aria-hidden />
         </div>
-        <StampArea />
-      </div>
 
-      {message ? (
-        <div className="mt-4 min-h-0 shrink-0">
-          <MessageArea
-            value={message}
-            editable={Boolean(onUpdateMessage)}
-            onChange={onUpdateMessage}
-            fontFamily={messageFontFamily(catchUp.messageFont)}
-          />
+        {/* Title + stamp */}
+        <div className="mt-3 flex shrink-0 items-start justify-between gap-3">
+          <div className="min-w-0 flex-1 text-left">
+            <EditableTitle
+              value={catchUp.title}
+              editable={Boolean(onUpdateTitle)}
+              onChange={onUpdateTitle}
+            />
+            {showFrom && creator ? (
+              <p className="mt-1 text-sm text-ink-soft">
+                from{" "}
+                <ParticipantNameButton
+                  participant={creator}
+                  onEdit={editHandler(creator)}
+                />
+              </p>
+            ) : null}
+            {recipientPeople.length > 0 ? (
+              <p
+                className={`${showFrom ? "mt-0.5" : "mt-1"} text-sm text-ink-soft`}
+              >
+                to{" "}
+                <span>
+                  {recipientPeople.map((person, i) => (
+                    <span key={person.id}>
+                      {i > 0 ? ", " : ""}
+                      <ParticipantNameButton
+                        participant={person}
+                        onEdit={editHandler(person)}
+                      />
+                    </span>
+                  ))}
+                </span>
+              </p>
+            ) : null}
+          </div>
+          <StampArea />
         </div>
-      ) : !showFrom ? (
-        <p className="mt-4 text-sm leading-relaxed text-ink-soft/70">
-          Enter details to see them appear here
-        </p>
-      ) : null}
+
+        {message ? (
+          <div className="mt-4 min-h-0 shrink-0">
+            <MessageArea
+              value={message}
+              editable={Boolean(onUpdateMessage)}
+              onChange={onUpdateMessage}
+              fontFamily={messageFontFamily(catchUp.messageFont)}
+            />
+          </div>
+        ) : !showFrom ? (
+          <p className="mt-4 text-sm leading-relaxed text-ink-soft/70">
+            Enter details to see them appear here
+          </p>
+        ) : null}
+      </div>
 
       <div className="my-4 shrink-0">
         <PostcardDivider />

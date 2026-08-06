@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FieldActionButton } from "@/components/ui";
 import {
   detectTimezone,
   formatTimezoneResult,
@@ -54,26 +55,47 @@ export function TimezonePicker({
           Timezone
           {required ? <span className="ml-0.5 text-stamp">*</span> : null}
         </p>
-        <button
-          type="button"
-          className="text-sm text-ocean hover:underline"
+        <FieldActionButton
           onClick={() => {
             setEditing((v) => !v);
             setOpen(true);
             setQuery("");
           }}
         >
-          {editing ? "Done" : "Search / edit"}
-        </button>
+          {editing ? (
+            <>
+              <span aria-hidden>✓</span>
+              Done
+            </>
+          ) : (
+            <>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden
+              >
+                <circle cx="11" cy="11" r="7" />
+                <path d="m21 21-4.3-4.3" />
+              </svg>
+              Search / edit
+            </>
+          )}
+        </FieldActionButton>
       </div>
 
       <div
-        className={`rounded-xl border bg-white px-4 py-3 ${
+        className={`rounded-xl border bg-white px-3.5 py-2 ${
           error ? "border-stamp/60" : "border-ink/10"
         }`}
       >
         <div className="flex flex-col gap-0.5 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-          <p className="min-w-0 text-base font-medium text-ink">
+          <p className="min-w-0 text-sm font-medium text-ink">
             {display.primary}
           </p>
           <p className="min-w-0 text-xs text-ink-soft sm:shrink-0 sm:text-right">

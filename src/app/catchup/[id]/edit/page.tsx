@@ -12,6 +12,8 @@ import {
 import { Button } from "@/components/ui";
 import {
   buildSharePath,
+  getCatchUpViewer,
+  markAsCreator,
   resolveCatchUp,
   saveCatchUp,
 } from "@/lib/storage";
@@ -26,14 +28,23 @@ export default function EditPostcardPage() {
 
   const [catchUp, setCatchUp] = useState<CatchUp | null>(null);
   const [loading, setLoading] = useState(true);
+  const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
     const data = resolveCatchUp(id, encoded);
     setCatchUp(data);
+    if (data) {
+      const viewer = getCatchUpViewer(data.id);
+      if (viewer?.role === "invitee") {
+        setForbidden(true);
+        router.replace(buildSharePath(data));
+        return;
+      }
+    }
     setLoading(false);
-  }, [id, encoded]);
+  }, [id, encoded, router]);
 
-  if (loading) {
+  if (loading || forbidden) {
     return (
       <div className="flex min-h-full items-center justify-center px-5">
         <p className="text-ink-soft">Opening postcard…</p>
@@ -93,6 +104,9 @@ function EditPostcardForm({
         selectedSlotId: undefined,
       };
       saveCatchUp(updated);
+      const creator =
+        updated.participants.find((p) => p.isCreator) ?? updated.participants[0];
+      if (creator) markAsCreator(updated.id, creator.id);
       // Rebuild share URL so ?p= carries the latest postcard fields
       router.push(buildSharePath(updated));
     },

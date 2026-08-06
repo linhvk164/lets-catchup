@@ -32,6 +32,23 @@ export function Button({
   );
 }
 
+/** Subtle label-row action (font switch, timezone search, etc.). Icon first. */
+export function FieldActionButton({
+  className = "",
+  children,
+  ...props
+}: ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      className={`inline-flex items-center gap-1.5 rounded-lg border border-ink/10 bg-white/55 px-2.5 py-1 text-xs font-medium text-ink-soft transition hover:border-ink/15 hover:bg-white/80 hover:text-ink ${className}`}
+      {...props}
+    >
+      {children}
+    </button>
+  );
+}
+
 type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
   label: string;
   hint?: string;
@@ -102,7 +119,7 @@ export function TextArea({
       </div>
       <textarea
         id={fieldId}
-        className={`min-h-28 w-full resize-y rounded-xl border bg-white/70 px-4 py-3 text-base text-ink outline-none ring-ocean/30 placeholder:text-ink-soft/50 focus:border-ocean/40 focus:ring-2 ${
+        className={`min-h-20 w-full resize-y rounded-xl border bg-white/70 px-4 py-2.5 text-base text-ink outline-none ring-ocean/30 placeholder:text-ink-soft/50 focus:border-ocean/40 focus:ring-2 ${
           error ? "border-stamp/60" : "border-ink/10"
         } ${className}`}
         {...props}

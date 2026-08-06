@@ -2,7 +2,16 @@ import { customAlphabet } from "nanoid";
 import type { CatchUp } from "./types";
 
 const STORAGE_PREFIX = "lets-catchup:";
+const VIEWER_PREFIX = "lets-catchup:viewer:";
 const nanoid = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 8);
+
+export type ViewerRole = "creator" | "invitee";
+
+export type CatchUpViewer = {
+  role: ViewerRole;
+  /** Local participant id — creator's own, or invitee's after they join. */
+  participantId?: string;
+};
 
 export function createCatchUpId(): string {
   return nanoid();
@@ -10,6 +19,38 @@ export function createCatchUpId(): string {
 
 function storageKey(id: string): string {
   return `${STORAGE_PREFIX}${id}`;
+}
+
+function viewerKey(id: string): string {
+  return `${VIEWER_PREFIX}${id}`;
+}
+
+export function getCatchUpViewer(id: string): CatchUpViewer | null {
+  if (typeof window === "undefined") return null;
+  const raw = localStorage.getItem(viewerKey(id));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as CatchUpViewer;
+    if (parsed.role !== "creator" && parsed.role !== "invitee") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function setCatchUpViewer(id: string, viewer: CatchUpViewer): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(viewerKey(id), JSON.stringify(viewer));
+}
+
+/** Mark this browser as the invitation creator. */
+export function markAsCreator(id: string, participantId: string): void {
+  setCatchUpViewer(id, { role: "creator", participantId });
+}
+
+/** Mark this browser as an invitee (optionally after joining). */
+export function markAsInvitee(id: string, participantId?: string): void {
+  setCatchUpViewer(id, { role: "invitee", participantId });
 }
 
 export function saveCatchUp(catchUp: CatchUp): void {

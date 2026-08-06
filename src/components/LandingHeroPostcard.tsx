@@ -13,7 +13,7 @@ const demoCatchUp: CatchUp = {
   id: "landing",
   title: "Let's Catch-up ᯓ 💌",
   message:
-    "It's been way too long. Let's find a time to catch up, see you soon ✨",
+    "It's been way too long. Let's find a time to catch up, see you soon!",
   duration: 30,
   createdAt: new Date().toISOString(),
   photo: getDefaultPhoto(),
