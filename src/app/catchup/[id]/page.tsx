@@ -34,13 +34,13 @@ export async function generateMetadata({
     catchUp?.participants.find((p) => p.isCreator) ?? catchUp?.participants[0];
   const title = valid
     ? catchupInviteTitle(creator?.name)
-    : "Let's Catchup";
+    : "Postcard Invite";
   const description = valid
     ? OG_DESCRIPTION
     : "Open this postcard invite to find a time to catch up.";
 
   return {
-    title,
+    title: { absolute: title },
     description,
     openGraph: {
       title,

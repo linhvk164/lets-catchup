@@ -3,9 +3,9 @@ import { ExternalLink } from "@/components/ExternalLink";
 import { InfoPage, InfoSection } from "@/components/InfoPage";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy · Let's Catch Up",
+  title: "Privacy Policy",
   description:
-    "How Let's Catch Up handles your information and what the app stores.",
+    "How Let's Catch Up stores invitation details, retains shared invites for about 90 days, and uses local storage on your device.",
 };
 
 export default function PrivacyPage() {

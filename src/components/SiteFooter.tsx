@@ -20,9 +20,9 @@ export function SiteFooter() {
 
   return (
     <footer
-      className={`relative z-40 mt-auto w-full shrink-0 px-5 sm:px-8 ${
+      className={`relative z-40 mt-auto w-full shrink-0 bg-paper px-5 sm:px-8 ${
         isHome
-          ? "landing-enter landing-enter--footer pb-8 pt-4 sm:pb-10 sm:pt-6 lg:pb-3 lg:pt-2"
+          ? "pb-10 pt-8 sm:pb-12 sm:pt-10"
           : "pb-6 pt-6 sm:pb-10 sm:pt-12 lg:pb-12 lg:pt-16"
       }`}
     >

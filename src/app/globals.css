@@ -14,6 +14,8 @@
   --gold: #c9a06a;
   --line: rgba(30, 51, 64, 0.12);
   --shadow: 0 18px 50px rgba(31, 79, 92, 0.14);
+  --cursor-dot: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='11' fill='%23c46040'/%3E%3C/svg%3E")
+    16 16;
   --background: var(--paper);
   --foreground: var(--ink);
 }
@@ -39,6 +41,21 @@
 
 * {
   box-sizing: border-box;
+}
+
+a,
+button,
+summary,
+label[for],
+[role="button"],
+[role="link"],
+[role="menuitem"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+select,
+.cursor-pointer {
+  cursor: var(--cursor-dot), pointer;
 }
 
 html {
@@ -729,8 +746,260 @@ body > * {
 @media (prefers-reduced-motion: reduce) {
   .landing-bg-settle,
   .landing-enter,
-  .landing-postcard {
+  .landing-postcard,
+  .landing-reveal {
     animation: none;
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .landing-reveal {
+    transition: none !important;
+  }
+}
+
+/* Scroll / load-in reveal for landing sections */
+.landing-reveal {
+  opacity: 0;
+  transform: translateY(1.1rem);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1) var(--reveal-delay, 0ms);
+}
+
+.landing-reveal.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* How-it-works polaroids — scrapbook row, caption holds the copy */
+.landing-polaroid-row {
+  perspective: 900px;
+}
+
+.landing-polaroid {
+  width: min(100%, 17.5rem);
+  flex-shrink: 0;
+}
+
+.landing-polaroid.landing-reveal {
+  transform: translateY(1.25rem);
+}
+
+.landing-polaroid.landing-reveal.is-visible {
+  transform: translateY(0);
+}
+
+.landing-polaroid__inner {
+  transform: rotate(var(--polaroid-rotate, 0deg));
+  transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (min-width: 640px) {
+  .landing-polaroid {
+    width: min(32%, 15.5rem);
+    margin-inline: 0.35rem;
+  }
+
+  .landing-polaroid:hover .landing-polaroid__inner {
+    transform: rotate(var(--polaroid-rotate, 0deg)) translateY(-0.4rem)
+      scale(1.03);
+  }
+
+  .landing-polaroid:hover {
+    z-index: 2;
+  }
+}
+
+@media (min-width: 1024px) {
+  .landing-polaroid {
+    width: min(30%, 17rem);
+    margin-inline: 0.65rem;
+  }
+}
+
+.landing-polaroid__frame {
+  background: #fff;
+  padding: 0.7rem 0.7rem 0;
+  box-shadow:
+    0 1px 2px rgba(30, 51, 64, 0.06),
+    0 14px 28px rgba(30, 51, 64, 0.12);
+}
+
+.landing-polaroid__photo {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  background: var(--paper-deep);
+}
+
+.landing-polaroid__caption {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  min-height: 8.75rem;
+  padding: 1rem 0.55rem 1.35rem;
+  text-align: left;
+}
+
+.landing-polaroid__step {
+  font-size: 0.7rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(30, 51, 64, 0.45);
+}
+
+.landing-polaroid__title {
+  margin-top: 0.45rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.landing-polaroid__body {
+  margin-top: 0.4rem;
+  font-size: 0.875rem;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-polaroid__inner,
+  .landing-polaroid:hover .landing-polaroid__inner {
+    transition: none;
+    transform: rotate(var(--polaroid-rotate, 0deg));
+  }
+}
+
+/* “Because staying in touch…” — full-bleed panel, padded content column */
+.because-panel__box {
+  position: relative;
+  min-height: 22rem;
+  overflow: hidden;
+  border-radius: 0;
+  background: #7fb0e8;
+  box-shadow: none;
+  cursor: var(--cursor-dot), pointer;
+}
+
+.because-panel__box::before {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.because-panel__content {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 64rem; /* matches landing max-w-5xl */
+  min-height: 22rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem; /* px-5 */
+}
+
+.because-panel__aside {
+  position: absolute;
+  top: 1.75rem;
+  right: 1.25rem;
+  z-index: 1;
+  max-width: 16.5rem;
+  text-align: right;
+}
+
+.because-panel__line {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.45;
+  color: var(--ocean-deep);
+}
+
+.because-panel__rule {
+  width: 4.5rem;
+  height: 1px;
+  margin: 1rem 0 1rem auto;
+  background: rgba(31, 79, 92, 0.35);
+}
+
+.because-panel__headline {
+  position: absolute;
+  bottom: 1.65rem;
+  left: 1.25rem;
+  right: 1.25rem;
+  z-index: 1;
+  text-align: left;
+}
+
+.because-panel__eyebrow {
+  margin: 0 0 0.45rem;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+  color: var(--ocean-deep);
+}
+
+.because-panel__heading {
+  margin: 0;
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-size: clamp(1.15rem, 3.6vw, 2.85rem);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--ocean-deep);
+  white-space: nowrap;
+}
+
+@media (min-width: 640px) {
+  .because-panel__box,
+  .because-panel__content {
+    min-height: 26rem;
+  }
+
+  .because-panel__content {
+    padding-inline: 2rem; /* sm:px-8 */
+  }
+
+  .because-panel__aside {
+    top: 2.25rem;
+    right: 2rem;
+    max-width: 19rem;
+  }
+
+  .because-panel__line {
+    font-size: 1.05rem;
+  }
+
+  .because-panel__headline {
+    bottom: 2rem;
+    left: 2rem;
+    right: 2rem;
+  }
+
+  .because-panel__eyebrow {
+    font-size: 1.1rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .because-panel__box,
+  .because-panel__content {
+    min-height: 28rem;
+  }
+
+  .because-panel__aside {
+    top: 2.75rem;
+  }
+
+  .because-panel__headline {
+    bottom: 2.4rem;
   }
 }
 
@@ -783,4 +1052,21 @@ body > * {
     animation: none;
     display: none;
   }
+}
+
+/* Round orange cursor on interactive controls (after Tailwind so it wins) */
+a,
+button,
+summary,
+label[for],
+[role="button"],
+[role="link"],
+[role="menuitem"],
+input[type="submit"],
+input[type="button"],
+input[type="reset"],
+select,
+.cursor-pointer,
+.because-panel__box {
+  cursor: var(--cursor-dot), pointer !important;
 }

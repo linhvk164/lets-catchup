@@ -3,7 +3,7 @@ import { ExternalLink } from "@/components/ExternalLink";
 import { InfoPage, InfoSection } from "@/components/InfoPage";
 
 export const metadata: Metadata = {
-  title: "About · Let's Catch Up",
+  title: "About",
   description:
     "Why Let's Catch Up exists — personal postcard invites for friends across time zones.",
 };

@@ -75,22 +75,36 @@ export const metadata: Metadata = {
           ? `https://${process.env.VERCEL_URL}`
           : "http://localhost:3000")
   ),
-  title: "Let's Catchup",
+  title: {
+    default:
+      "Let's Catch Up | Schedule Across Time Zones with Beautiful Postcards",
+    template: "%s | Let's Catch Up",
+  },
   description:
-    "Send a postcard invite. Find a moment to catch up, no matter where you are.",
+    "Find the best meeting time across time zones and invite friends with a beautiful digital postcard. Free, simple, and designed for long-distance friendships.",
   openGraph: {
-    title: "Let's Catchup",
+    title:
+      "Let's Catch Up | Schedule Across Time Zones with Beautiful Postcards",
     description:
-      "Send a postcard invite and find a time that works across time zones.",
+      "Find the best meeting time across time zones and invite friends with a beautiful digital postcard. Free, simple, and designed for long-distance friendships.",
     type: "website",
+    siteName: "Let's Catch Up",
     images: [
       {
         url: "/images/og/postcard-invite.jpg",
         width: 1200,
         height: 630,
-        alt: "Let's Catch-up",
+        alt: "Let's Catch Up",
       },
     ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title:
+      "Let's Catch Up | Schedule Across Time Zones with Beautiful Postcards",
+    description:
+      "Find the best meeting time across time zones and invite friends with a beautiful digital postcard.",
+    images: ["/images/og/postcard-invite.jpg"],
   },
   icons: {
     icon: [{ url: "/images/logo/logo-submark.svg", type: "image/svg+xml" }],
