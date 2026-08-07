@@ -14,6 +14,7 @@ import {
   markAsCreator,
   saveCatchUp,
 } from "@/lib/storage";
+import { apiCreateCatchUp } from "@/lib/catchup-api";
 import { markPostcardCelebrate } from "@/components/ConfettiBurst";
 import type { CatchUp } from "@/lib/types";
 
@@ -79,10 +80,14 @@ export default function CreatePage() {
     []
   );
 
-  function persistCreated(catchUp: CatchUp) {
+  async function persistCreated(catchUp: CatchUp) {
     saveCatchUp(catchUp);
-    const creator = catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
+    const creator =
+      catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
     if (creator) markAsCreator(catchUp.id, creator.id);
+    const { catchUp: saved } = await apiCreateCatchUp(catchUp);
+    saveCatchUp(saved);
+    return saved;
   }
 
   const {
@@ -101,22 +106,42 @@ export default function CreatePage() {
     submitLabel: "Ready to share",
     onRevealSide: revealSide,
     onSubmit: (formValues) => {
-      const catchUp = buildCatchUp(formValues);
-      persistCreated(catchUp);
-      markPostcardCelebrate(catchUp.id);
-      router.push(buildSharePath(catchUp));
+      void (async () => {
+        const catchUp = buildCatchUp(formValues);
+        try {
+          const saved = await persistCreated(catchUp);
+          markPostcardCelebrate(saved.id);
+          router.push(buildSharePath(saved));
+        } catch (err) {
+          console.error(err);
+          // Still navigate with local copy so create isn't blocked offline
+          markPostcardCelebrate(catchUp.id);
+          router.push(buildSharePath(catchUp));
+        }
+      })();
     },
   });
 
-  function finishMobile() {
+  async function finishMobile() {
     if (!validateStep(2)) return null;
     const catchUp = buildCatchUp(values);
-    persistCreated(catchUp);
+    let saved = catchUp;
+    try {
+      saved = await persistCreated(catchUp);
+    } catch (err) {
+      console.error(err);
+      saveCatchUp(catchUp);
+      const creator =
+        catchUp.participants.find((p) => p.isCreator) ??
+        catchUp.participants[0];
+      if (creator) markAsCreator(catchUp.id, creator.id);
+    }
+    markPostcardCelebrate(saved.id);
     const shareUrl =
       typeof window !== "undefined"
-        ? `${window.location.origin}${buildSharePath(catchUp)}`
-        : buildSharePath(catchUp);
-    return { catchUp, shareUrl };
+        ? `${window.location.origin}${buildSharePath(saved)}`
+        : buildSharePath(saved);
+    return { catchUp: saved, shareUrl };
   }
 
   return (

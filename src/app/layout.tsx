@@ -83,6 +83,14 @@ export const metadata: Metadata = {
     description:
       "Send a postcard invite and find a time that works across time zones.",
     type: "website",
+    images: [
+      {
+        url: "/images/og/postcard-invite.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Let's Catch-up",
+      },
+    ],
   },
   icons: {
     icon: [{ url: "/images/logo/logo-submark.svg", type: "image/svg+xml" }],

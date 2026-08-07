@@ -172,35 +172,15 @@ export function decodeCatchUp(encoded: string): CatchUp | null {
   }
 }
 
-export function buildSharePath(catchUp: CatchUp): string {
-  return `/catchup/${catchUp.id}?p=${encodeCatchUp(catchUp)}`;
+export function buildSharePath(catchUp: CatchUp | string): string {
+  const id = typeof catchUp === "string" ? catchUp : catchUp.id;
+  return `/catchup/${id}`;
 }
 
-/** Fields for Open Graph postcard preview (short query params). */
-export function getSharePreviewFields(catchUp: CatchUp): {
-  title: string;
-  from: string;
-  photo: string;
-} {
-  const creator =
-    catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
-  return {
-    title: catchUp.title?.trim() || "Let's Catchup",
-    from: creator?.name?.trim() || "A friend",
-    photo: catchUp.photo?.src || "/images/postcards/spanish-beach.jpg",
-  };
-}
-
-export function buildOgImagePath(catchUp: CatchUp): string {
-  const { title, from, photo } = getSharePreviewFields(catchUp);
-  const params = new URLSearchParams({
-    title,
-    from,
-    photo,
-  });
-  return `/api/og?${params.toString()}`;
-}
-
+/**
+ * Resolve invite for legacy clients. Prefer API (`apiGetCatchUp`) for shared state.
+ * Still merges `?p=` payloads into localStorage for one-shot migration.
+ */
 export function resolveCatchUp(
   id: string,
   encoded?: string | null

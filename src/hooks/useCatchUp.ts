@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { customAlphabet } from "nanoid";
 import { findMeetingSlots, getSelectedSlot } from "@/lib/scheduler";
+import { apiGetCatchUp, apiPutCatchUp } from "@/lib/catchup-api";
 import {
   buildSharePath,
-  encodeCatchUp,
+  decodeCatchUp,
+  loadCatchUp,
   resolveCatchUp,
   saveCatchUp,
 } from "@/lib/storage";
@@ -17,27 +19,114 @@ export function createParticipantId(): string {
   return participantId();
 }
 
+function mergeLocalPhoto(remote: CatchUp, local: CatchUp | null): CatchUp {
+  if (!local?.photo?.dataUrl) return remote;
+  return {
+    ...remote,
+    photo: remote.photo
+      ? { ...remote.photo, dataUrl: local.photo.dataUrl }
+      : local.photo,
+  };
+}
+
 /**
  * Single source of truth for a catch-up invitation.
- * Participant edits, time selection, and share payload all flow through here.
+ * Shared state lives on the server; localStorage is a cache only.
  */
 export function useCatchUp(id: string, encodedFromUrl?: string | null) {
   const [catchUp, setCatchUp] = useState<CatchUp | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const data = resolveCatchUp(id, encodedFromUrl);
-    setCatchUp(data);
-    setLoading(false);
+  const loadRemote = useCallback(async () => {
+    setError(null);
+    const local = loadCatchUp(id);
+
+    // Legacy fat URL: upsert once, then clean the address bar.
+    if (encodedFromUrl) {
+      const fromUrl = decodeCatchUp(encodedFromUrl);
+      if (fromUrl && fromUrl.id === id) {
+        const merged = resolveCatchUp(id, encodedFromUrl) ?? fromUrl;
+        try {
+          const saved = await apiPutCatchUp(merged);
+          const withPhoto = mergeLocalPhoto(saved, local);
+          saveCatchUp(withPhoto);
+          setCatchUp(withPhoto);
+          if (typeof window !== "undefined") {
+            window.history.replaceState(null, "", buildSharePath(id));
+          }
+          return;
+        } catch (err) {
+          // Fall back to URL/local snapshot if store is down
+          setCatchUp(merged);
+          setError(err instanceof Error ? err.message : "Failed to sync invite");
+          return;
+        }
+      }
+    }
+
+    try {
+      const remote = await apiGetCatchUp(id);
+      if (remote) {
+        const withPhoto = mergeLocalPhoto(remote, local);
+        saveCatchUp(withPhoto);
+        setCatchUp(withPhoto);
+        return;
+      }
+      // Not on server yet — use local cache if present
+      if (local) {
+        setCatchUp(local);
+        return;
+      }
+      setCatchUp(null);
+    } catch (err) {
+      if (local) {
+        setCatchUp(local);
+        setError(err instanceof Error ? err.message : "Failed to load invite");
+        return;
+      }
+      setCatchUp(null);
+      setError(err instanceof Error ? err.message : "Failed to load invite");
+    }
   }, [id, encodedFromUrl]);
 
-  const persist = useCallback((next: CatchUp) => {
-    // Clear selection if it no longer exists after participant changes
-    saveCatchUp(next);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      await loadRemote();
+      if (!cancelled) setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [loadRemote]);
+
+  // Refetch when returning to the tab so the same link shows latest changes.
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === "visible") {
+        void loadRemote();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadRemote]);
+
+  const persist = useCallback(async (next: CatchUp) => {
     setCatchUp(next);
+    saveCatchUp(next);
     if (typeof window !== "undefined") {
-      const path = `${window.location.pathname}?p=${encodeCatchUp(next)}`;
-      window.history.replaceState(null, "", path);
+      window.history.replaceState(null, "", buildSharePath(next.id));
+    }
+    try {
+      const saved = await apiPutCatchUp(next);
+      const withPhoto = mergeLocalPhoto(saved, next);
+      saveCatchUp(withPhoto);
+      setCatchUp(withPhoto);
+      setError(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to save invite");
     }
   }, []);
 
@@ -75,36 +164,36 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
           { ...participant, id: participant.id ?? createParticipantId() },
         ],
       };
-      persist(next);
+      void persist(next);
     },
     [catchUp, persist]
   );
 
   const updateParticipant = useCallback(
-    (id: string, patch: Partial<Participant>) => {
+    (participantId: string, patch: Partial<Participant>) => {
       if (!catchUp) return;
       const next: CatchUp = {
         ...catchUp,
         selectedSlotId: undefined,
         participants: catchUp.participants.map((p) =>
-          p.id === id ? { ...p, ...patch, id: p.id } : p
+          p.id === participantId ? { ...p, ...patch, id: p.id } : p
         ),
       };
-      persist(next);
+      void persist(next);
     },
     [catchUp, persist]
   );
 
   const removeParticipant = useCallback(
-    (id: string) => {
+    (participantId: string) => {
       if (!catchUp) return;
       if (catchUp.participants.length <= 1) return;
       const next: CatchUp = {
         ...catchUp,
         selectedSlotId: undefined,
-        participants: catchUp.participants.filter((p) => p.id !== id),
+        participants: catchUp.participants.filter((p) => p.id !== participantId),
       };
-      persist(next);
+      void persist(next);
     },
     [catchUp, persist]
   );
@@ -112,7 +201,7 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
   const selectSlot = useCallback(
     (slot: MeetingSlot) => {
       if (!catchUp) return;
-      persist({ ...catchUp, selectedSlotId: slot.id });
+      void persist({ ...catchUp, selectedSlotId: slot.id });
     },
     [catchUp, persist]
   );
@@ -120,7 +209,7 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
   const updateTitle = useCallback(
     (title: string) => {
       if (!catchUp) return;
-      persist({ ...catchUp, title });
+      void persist({ ...catchUp, title });
     },
     [catchUp, persist]
   );
@@ -128,7 +217,7 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
   const updateMessage = useCallback(
     (message: string) => {
       if (!catchUp) return;
-      persist({ ...catchUp, message });
+      void persist({ ...catchUp, message });
     },
     [catchUp, persist]
   );
@@ -136,12 +225,14 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
   return {
     catchUp,
     loading,
+    error,
     slots,
     bestSlot,
     selectedSlot,
     moreCount,
     shareUrl,
     persist,
+    reload: loadRemote,
     addParticipant,
     updateParticipant,
     removeParticipant,
@@ -150,4 +241,3 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
     updateMessage,
   };
 }
-

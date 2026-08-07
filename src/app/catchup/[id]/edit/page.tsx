@@ -9,6 +9,7 @@ import {
   usePostcardInviteForm,
 } from "@/components/PostcardInviteForm";
 import { Button } from "@/components/ui";
+import { apiGetCatchUp, apiPutCatchUp } from "@/lib/catchup-api";
 import {
   buildSharePath,
   getCatchUpViewer,
@@ -30,17 +31,43 @@ export default function EditPostcardPage() {
   const [forbidden, setForbidden] = useState(false);
 
   useEffect(() => {
-    const data = resolveCatchUp(id, encoded);
-    setCatchUp(data);
-    if (data) {
-      const viewer = getCatchUpViewer(data.id);
-      if (viewer?.role === "invitee") {
-        setForbidden(true);
-        router.replace(buildSharePath(data));
-        return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        let data = await apiGetCatchUp(id);
+        if (!data && encoded) {
+          data = resolveCatchUp(id, encoded);
+          if (data) {
+            try {
+              data = await apiPutCatchUp(data);
+              router.replace(buildSharePath(data.id));
+            } catch {
+              /* keep local migration copy */
+            }
+          }
+        }
+        if (cancelled) return;
+        setCatchUp(data);
+        if (data) {
+          const viewer = getCatchUpViewer(data.id);
+          if (viewer?.role === "invitee") {
+            setForbidden(true);
+            router.replace(buildSharePath(data.id));
+            return;
+          }
+        }
+      } catch {
+        if (!cancelled) {
+          const fallback = resolveCatchUp(id, encoded);
+          setCatchUp(fallback);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    }
-    setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id, encoded, router]);
 
   if (loading || forbidden) {
@@ -94,21 +121,27 @@ function EditPostcardForm({
     onCancel,
     onRevealSide: (side) => setFlipped(side === "back"),
     onSubmit: (values) => {
-      const next = buildDraftCatchUp(values, {
-        id: initialCatchUp.id,
-        existing: initialCatchUp,
-      });
-      // Clear confirmed slot if creator details changed enough to invalidate it
-      const updated: CatchUp = {
-        ...next,
-        selectedSlotId: undefined,
-      };
-      saveCatchUp(updated);
-      const creator =
-        updated.participants.find((p) => p.isCreator) ?? updated.participants[0];
-      if (creator) markAsCreator(updated.id, creator.id);
-      // Rebuild share URL so ?p= carries the latest postcard fields
-      router.push(buildSharePath(updated));
+      void (async () => {
+        const next = buildDraftCatchUp(values, {
+          id: initialCatchUp.id,
+          existing: initialCatchUp,
+        });
+        const updated: CatchUp = {
+          ...next,
+          selectedSlotId: undefined,
+        };
+        saveCatchUp(updated);
+        const creator =
+          updated.participants.find((p) => p.isCreator) ??
+          updated.participants[0];
+        if (creator) markAsCreator(updated.id, creator.id);
+        try {
+          await apiPutCatchUp(updated);
+        } catch (err) {
+          console.error(err);
+        }
+        router.push(buildSharePath(updated));
+      })();
     },
   });
 
@@ -120,8 +153,8 @@ function EditPostcardForm({
             Edit Postcard Invite
           </h1>
           <p className="mt-2 text-sm text-ink-soft">
-            Update your postcard. Friends will see the changes when you share
-            the updated link.
+            Update your postcard. Friends will see the changes on the same share
+            link.
           </p>
         </div>
 

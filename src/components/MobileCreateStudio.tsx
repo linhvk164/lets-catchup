@@ -15,7 +15,6 @@ import {
   nextMessageFontId,
   type MessageFontId,
 } from "@/lib/message-fonts";
-import { encodeCatchUp } from "@/lib/storage";
 import {
   isPostcardMessageTooLong,
   MESSAGE_TOO_LONG_HINT,
@@ -62,7 +61,10 @@ type MobileCreateFlowProps = {
   };
   validateStep: (step: CreateFlowStep) => boolean;
   /** Persist catch-up and return the share URL for step 3. */
-  onFinish: () => { catchUp: CatchUp; shareUrl: string } | null;
+  onFinish: () =>
+    | { catchUp: CatchUp; shareUrl: string }
+    | null
+    | Promise<{ catchUp: CatchUp; shareUrl: string } | null>;
 };
 
 function CreateStepHeader({ step }: { step: CreateFlowStep }) {
@@ -159,11 +161,13 @@ export function MobileCreateStudio({
     }
     if (step === 2) {
       if (!validateStep(2)) return;
-      const result = onFinish();
-      if (!result) return;
-      setFinished(result);
-      setStep(3);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      void (async () => {
+        const result = await onFinish();
+        if (!result) return;
+        setFinished(result);
+        setStep(3);
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      })();
     }
   }
 
@@ -183,11 +187,15 @@ export function MobileCreateStudio({
 
   async function shareLink() {
     if (!finished) return;
+    const creator =
+      finished.catchUp.participants.find((p) => p.isCreator) ??
+      finished.catchUp.participants[0];
+    const fromName = creator?.name?.trim() || "Someone special";
     if (navigator.share) {
       try {
         await navigator.share({
-          title: finished.catchUp.title,
-          text: `${finished.catchUp.participants[0]?.name ?? "A friend"} invited you to catch up.`,
+          title: `Catchup invite from ${fromName}`,
+          text: `${fromName} sent you a postcard invite.`,
           url: finished.shareUrl,
         });
         return;
@@ -389,9 +397,7 @@ export function MobileCreateStudio({
             <button
               type="button"
               onClick={() => {
-                router.push(
-                  `/catchup/${finished.catchUp.id}/edit?p=${encodeCatchUp(finished.catchUp)}`
-                );
+                router.push(`/catchup/${finished.catchUp.id}/edit`);
               }}
               className="mt-1 py-1 text-center text-sm text-ink-soft underline-offset-2 transition hover:text-ink hover:underline"
             >

@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  decodeCatchUp,
-  encodeCatchUp,
-  getSharePreviewFields,
-} from "./storage";
+import { decodeCatchUp, encodeCatchUp } from "./storage";
 import type { CatchUp } from "./types";
+import { catchupInviteTitle, SHARE_OG } from "./og";
 
 const sample: CatchUp = {
   id: "abcd1234",
@@ -67,9 +64,13 @@ test("decodeCatchUp accepts legacy base64url payloads", () => {
   assert.equal(decoded!.id, sample.id);
 });
 
-test("getSharePreviewFields extracts OG fields", () => {
-  const preview = getSharePreviewFields(sample);
-  assert.equal(preview.title, "Let's Catch-up");
-  assert.equal(preview.from, "Linh");
-  assert.equal(preview.photo, "/images/postcards/spanish-beach.jpg");
+test("static OG image and personalized invite title", () => {
+  assert.equal(SHARE_OG.images[0].url, "/images/og/postcard-invite.jpg");
+  assert.equal(SHARE_OG.images[0].width, 1200);
+  assert.equal(SHARE_OG.images[0].height, 630);
+  assert.equal(catchupInviteTitle("Linh"), "Catchup invite from Linh");
+  assert.equal(
+    catchupInviteTitle(""),
+    "Catchup invite from someone special"
+  );
 });

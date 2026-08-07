@@ -109,11 +109,14 @@ export function CatchUpInvitationClient() {
 
   async function shareLink() {
     if (!shareUrl || !catchUp) return;
+    const creator =
+      catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
+    const fromName = creator?.name?.trim() || "Someone special";
     if (navigator.share) {
       try {
         await navigator.share({
-          title: catchUp.title,
-          text: `${catchUp.participants[0]?.name ?? "A friend"} invited you to catch up.`,
+          title: `Catchup invite from ${fromName}`,
+          text: `${fromName} sent you a postcard invite.`,
           url: shareUrl,
         });
         return;
@@ -142,10 +145,7 @@ export function CatchUpInvitationClient() {
 
   function goToEditPostcard() {
     if (!catchUp) return;
-    const p = searchParams.get("p");
-    router.push(
-      p ? `/catchup/${catchUp.id}/edit?p=${p}` : `/catchup/${catchUp.id}/edit`
-    );
+    router.push(`/catchup/${catchUp.id}/edit`);
   }
 
   function handleSaveDraft(draft: ParticipantDraft) {

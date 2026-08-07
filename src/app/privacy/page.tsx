@@ -22,21 +22,35 @@ export default function PrivacyPage() {
       <InfoSection title="Information We Collect">
         <p>
           When you create or join an invitation, the app may store the following
-          on your device (browser local storage) and in shareable invitation
-          links:
+          on our servers and on your device (browser local storage):
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Your name</li>
           <li>Your selected city or timezone</li>
           <li>Your availability</li>
           <li>Your personal message (if provided)</li>
-          <li>Your selected postcard image</li>
+          <li>Your selected postcard image reference</li>
           <li>Invitation identifiers used for sharing</li>
         </ul>
         <p>
-          The app does not require an account. Invitation details are primarily
-          kept in your browser and passed through the share link so friends can
-          open the same postcard.
+          The app does not require an account. Invitation details are stored on
+          the server under a short link so everyone with the link sees the same
+          live invite. Your browser may also keep a local cache for faster
+          loading and offline fallback.
+        </p>
+      </InfoSection>
+
+      <InfoSection title="Server Storage and Retention">
+        <p>
+          Shared invitations are stored on a cloud database (currently Upstash
+          Redis) keyed by invitation id. Each write refreshes a retention window
+          of about 90 days. Invitations that are not updated may expire and be
+          deleted after that period of inactivity.
+        </p>
+        <p>
+          Custom photo uploads embedded as local data URLs are not uploaded to
+          the server; only standard postcard image references and other invite
+          fields are persisted remotely.
         </p>
       </InfoSection>
 
@@ -54,18 +68,16 @@ export default function PrivacyPage() {
 
       <InfoSection title="Cookies and Local Storage">
         <p>The app does not currently set cookies.</p>
-        <p>
-          It uses browser local storage (and invitation data in the share URL)
-          to:
-        </p>
+        <p>It uses browser local storage to:</p>
         <ul className="list-disc space-y-1.5 pl-5">
-          <li>Keep invitation details available on your device</li>
+          <li>Cache invitation details on your device</li>
           <li>Remember whether you created or joined a postcard</li>
-          <li>Support sharing invitations through a link</li>
+          <li>Support opening invitations when the network is unavailable</li>
         </ul>
         <p>
-          Clearing your browser storage may remove locally saved invitations on
-          that device.
+          Clearing your browser storage may remove locally cached invitations on
+          that device. The shared server copy remains until it expires or is
+          updated.
         </p>
       </InfoSection>
 
@@ -101,19 +113,19 @@ export default function PrivacyPage() {
       <InfoSection title="Hosting">
         <p>
           Let&apos;s Catch Up is hosted using modern cloud infrastructure.
-          Standard server logs may temporarily record technical information such
-          as IP address, browser version, and request timestamps for security
-          and operational purposes.
+          Invitation data is stored with Upstash. Standard server logs may
+          temporarily record technical information such as IP address, browser
+          version, and request timestamps for security and operational purposes.
         </p>
       </InfoSection>
 
       <InfoSection title="Data Sharing">
         <p>Personal information is not sold to third parties.</p>
         <p>
-          Because invitations are stored locally and shared through links, your
-          invitation content is mainly held on participants&apos; devices and in
-          the URLs they share. Information is only otherwise processed by
-          services required to operate the website, such as hosting providers.
+          Anyone with your invitation link can view and update that invitation
+          (for example by adding availability). Information is otherwise
+          processed only by services required to operate the website, such as
+          hosting and database providers.
         </p>
       </InfoSection>
 

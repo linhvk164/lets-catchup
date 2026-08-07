@@ -10,6 +10,7 @@
     "test": "npx --yes tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.2",
     "luxon": "^3.7.2",
     "lz-string": "^1.5.0",
     "nanoid": "^5.1.16",
