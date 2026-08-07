@@ -8,8 +8,7 @@ import { getDefaultPhoto } from "@/lib/photos";
 
 export const metadata: Metadata = {
   title: {
-    absolute:
-      "Let's Catch Up | Schedule Across Time Zones with Beautiful Postcards",
+    absolute: "Let's Catch Up: Time Zone Scheduler for Friends Worldwide",
   },
   description:
     "Find the best meeting time across time zones and invite friends with a beautiful digital postcard. Free, simple, and designed for long-distance friendships.",
