@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { getAllArticles } from "@/lib/articles";
 
 function siteUrl(): string {
   return (
@@ -15,6 +16,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const base = siteUrl().replace(/\/$/, "");
   const now = new Date();
 
+  const articleEntries: MetadataRoute.Sitemap = getAllArticles().map(
+    (article) => ({
+      url: `${base}/articles/${article.slug}`,
+      lastModified: now,
+      changeFrequency: "monthly",
+      priority: 0.7,
+    })
+  );
+
   return [
     {
       url: base,
@@ -28,6 +38,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.9,
     },
+    {
+      url: `${base}/articles`,
+      lastModified: now,
+      changeFrequency: "weekly",
+      priority: 0.8,
+    },
+    ...articleEntries,
     {
       url: `${base}/about`,
       lastModified: now,

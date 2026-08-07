@@ -43,6 +43,15 @@ export function SiteFooter() {
           ·
         </span>
         <Link
+          href="/articles"
+          className="underline-offset-2 transition hover:text-ink-soft hover:underline"
+        >
+          Articles
+        </Link>
+        <span aria-hidden className="text-ink/20">
+          ·
+        </span>
+        <Link
           href="/about"
           className="underline-offset-2 transition hover:text-ink-soft hover:underline"
         >

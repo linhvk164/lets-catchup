@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { BecauseItsAbout } from "@/components/BecauseItsAbout";
+import { LandingArticles } from "@/components/LandingArticles";
 import { LandingHeroPostcard } from "@/components/LandingHeroPostcard";
 import { LandingReveal } from "@/components/LandingReveal";
 import { TransitionLink } from "@/components/TransitionLink";
@@ -261,6 +262,8 @@ export default function HomePage() {
               </LandingReveal>
             </div>
           </section>
+
+          <LandingArticles />
 
           {/* FAQ */}
           <section aria-labelledby="faq-heading">
