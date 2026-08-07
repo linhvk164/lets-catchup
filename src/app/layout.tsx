@@ -109,6 +109,9 @@ export const metadata: Metadata = {
   icons: {
     icon: [{ url: "/images/logo/logo-submark.svg", type: "image/svg+xml" }],
   },
+  verification: {
+    google: "eelrj8EcFvF1SSQMIxRpXGwsdqlFPDI9pJKUFOyapEI",
+  },
 };
 
 export const viewport: Viewport = {
