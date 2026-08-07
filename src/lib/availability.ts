@@ -62,7 +62,7 @@ const DAY_PLURAL: Record<DayOfWeek, string> = {
 };
 
 const EXCLUSION_MARKER =
-  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|unavailable(?:\s+on)?|not\s+free|not\s+available|can'?t|cannot|busy|no|not)\b/i;
+  /\b(?:except(?:\s+for)?|excluding|but\s+not|other\s+than|apart\s+from|aside\s+from|besides|avoid(?:ing)?|skip(?:ping)?|unavailable(?:\s+on)?|not\s+free|not\s+available|can'?t|cannot|busy|booked|blocked|never|nothing|no|not)\b/i;
 
 /** Recurring time-of-day hole punched out of availability (not a calendar date). */
 interface TimeExclusion {
@@ -111,6 +111,11 @@ export interface ParsedAvailability {
   detail: string;
   /** Friendly breakdown of what was parsed. */
   debugLines: string[];
+  /**
+   * False when nothing in the note could be read and the rules below are an
+   * invented default rather than something the writer actually said.
+   */
+  understood: boolean;
 }
 
 /** Only assumed window — when the user says "anytime". */
@@ -129,6 +134,21 @@ function parseClock(
 
   if (cleaned === "noon") return tod(12);
   if (cleaned === "midnight") return tod(0);
+
+  // "9h" and 24 hour "0900" / "1700" are already unambiguous.
+  const hourSuffix = cleaned.match(/^(\d{1,2})h$/);
+  if (hourSuffix) {
+    const hour = Number(hourSuffix[1]);
+    return hour <= 23 ? tod(hour) : null;
+  }
+
+  const military = cleaned.match(/^\d{3,4}$/);
+  if (military) {
+    const digits = cleaned.padStart(4, "0");
+    const hour = Number(digits.slice(0, 2));
+    const minute = Number(digits.slice(2));
+    return hour <= 23 && minute <= 59 ? tod(hour, minute) : null;
+  }
 
   const match = cleaned.match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm|a|p)?$/i);
   if (!match) return null;
@@ -159,12 +179,82 @@ function extractMeridiem(raw: string): "am" | "pm" | undefined {
   return m[1].startsWith("p") ? "pm" : "am";
 }
 
+const SINGLE_DAY_TOKEN =
+  "mon(?:day)?s?|tue(?:s|sday)?s?|wed(?:nesday)?s?|thu(?:rs|rsday|r)?s?|fri(?:day)?s?|sat(?:urday)?s?|sun(?:day)?s?";
+
+const DAY_RANGE_RE = new RegExp(
+  `\\b(${SINGLE_DAY_TOKEN})\\s*(?:-|–|—|to|through|thru|til|till|until)\\s*(${SINGLE_DAY_TOKEN})\\b`,
+  "gi"
+);
+
+/** Compact shorthand people type for recurring days, e.g. "MWF" or "M/W/F". */
+const COMPACT_DAY_LETTERS: Record<string, DayOfWeek> = {
+  M: "monday",
+  T: "tuesday",
+  W: "wednesday",
+  Th: "thursday",
+  F: "friday",
+  Sa: "saturday",
+  Su: "sunday",
+};
+
+const COMPACT_DAY_GROUPS: Record<string, DayOfWeek[]> = {
+  MWF: ["monday", "wednesday", "friday"],
+  TTh: ["tuesday", "thursday"],
+  MW: ["monday", "wednesday"],
+  WF: ["wednesday", "friday"],
+  MF: ["monday", "friday"],
+};
+
+function normalizeDayLetter(letter: string): string {
+  return letter.charAt(0).toUpperCase() + letter.slice(1).toLowerCase();
+}
+
+/** Inclusive walk forward through the week, wrapping so "Sat-Mon" works. */
+function expandDayRange(from: DayOfWeek, to: DayOfWeek): DayOfWeek[] {
+  const start = ALL_DAYS.indexOf(from);
+  const end = ALL_DAYS.indexOf(to);
+  if (start < 0 || end < 0) return [];
+  const days: DayOfWeek[] = [];
+  let index = start;
+  for (let guard = 0; guard < ALL_DAYS.length; guard++) {
+    days.push(ALL_DAYS[index]);
+    if (index === end) break;
+    index = (index + 1) % ALL_DAYS.length;
+  }
+  return days;
+}
+
 function extractDays(text: string): DayOfWeek[] {
   const found = new Set<DayOfWeek>();
-  const tokens = text.toLowerCase().match(
-    /\b(mon(?:day)?s?|tue(?:s|sday)?s?|wed(?:nesday)?s?|thu(?:rs|rsday|r)?s?|fri(?:day)?s?|sat(?:urday)?s?|sun(?:day)?s?)\b/g
+
+  for (const [group, days] of Object.entries(COMPACT_DAY_GROUPS)) {
+    if (new RegExp(`\\b${group}\\b`, "i").test(text)) {
+      for (const day of days) found.add(day);
+    }
+  }
+
+  const slashed = text.match(
+    /\b(?:M|T|W|Th|F|Sa|Su)(?:\/(?:M|T|W|Th|F|Sa|Su))+\b/gi
   );
-  if (!tokens) return [];
+  for (const match of slashed ?? []) {
+    for (const letter of match.split("/")) {
+      const day = COMPACT_DAY_LETTERS[normalizeDayLetter(letter)];
+      if (day) found.add(day);
+    }
+  }
+
+  // Expand "Mon-Wed" before reading single days, otherwise the middle is lost.
+  const working = text.toLowerCase().replace(DAY_RANGE_RE, (match, from, to) => {
+    const first = resolveDayToken(from);
+    const last = resolveDayToken(to);
+    if (!first || !last) return match;
+    for (const day of expandDayRange(first, last)) found.add(day);
+    return " ";
+  });
+
+  const tokens = working.match(new RegExp(`\\b(${SINGLE_DAY_TOKEN})\\b`, "g"));
+  if (!tokens) return ALL_DAYS.filter((d) => found.has(d));
   for (const token of tokens) {
     const stem = token.startsWith("mon")
       ? "monday"
@@ -183,7 +273,7 @@ function extractDays(text: string): DayOfWeek[] {
                   : null;
     if (stem) found.add(stem);
   }
-  return [...found];
+  return ALL_DAYS.filter((d) => found.has(d));
 }
 
 function formatClock(t: TimeOfDay): string {
@@ -213,7 +303,20 @@ function hasAnytimePhrase(text: string): boolean {
     /\bany\s+hour\b/.test(text) ||
     /\bwhenever\b/.test(text) ||
     /\ball\s*day\b/.test(text) ||
-    /\bfree\s+all\s+day\b/.test(text)
+    /\bfree\s+all\s+day\b/.test(text) ||
+    /\bevery\s*day\b/.test(text) ||
+    /\beach\s+day\b/.test(text) ||
+    /\ball\s+week\b/.test(text) ||
+    /\bdaily\b/.test(text) ||
+    /\bany\s+day\b/.test(text) ||
+    /\bup\s+to\s+you\b/.test(text) ||
+    /\byou\s+pick\b/.test(text) ||
+    /\byour\s+call\b/.test(text) ||
+    /\bwhatever\s+works\b/.test(text) ||
+    /\bwide\s+open\b/.test(text) ||
+    /\bi'?m\s+easy\b/.test(text) ||
+    /\beasy\s+either\s+way\b/.test(text) ||
+    /^\s*open\s*$/.test(text)
   );
 }
 
@@ -224,7 +327,10 @@ function hasFlexiblePhrase(text: string): boolean {
     /\bi\s+am\s+usually\s+free\b/.test(text) ||
     /\busually\s+free\b/.test(text) ||
     /\bmost\s+days?\s+work\b/.test(text) ||
-    /\bfairly\s+open\b/.test(text)
+    /\bmost\s+days\b/.test(text) ||
+    /\bfairly\s+open\b/.test(text) ||
+    /\bpretty\s+open\b/.test(text) ||
+    /\bi'?m\s+open\b/.test(text)
   );
 }
 
@@ -232,6 +338,7 @@ function hasWeekdays(text: string): boolean {
   return (
     /\bweekdays?\b/.test(text) ||
     /\bweek\s*days?\b/.test(text) ||
+    /\bweek\s*nights?\b/.test(text) ||
     /\bmon(?:day)?\s*[-–to]+\s*fri(?:day)?\b/.test(text)
   );
 }
@@ -240,22 +347,94 @@ function hasWeekends(text: string): boolean {
   return /\bweekends?\b/.test(text);
 }
 
-function extractTimeRange(text: string): { start: TimeOfDay; end: TimeOfDay } | null {
-  const patterns = [
-    /\b(?:from|between)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)\s*(?:to|and|-|–|—)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)/i,
-    /\b(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)\s*(?:to|-|–|—)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)/i,
-  ];
+/** A clock in a range: "9", "9:30pm", 24 hour "0900", or "9h". */
+const RANGE_CLOCK =
+  "\\d{1,2}h|\\d{3,4}|\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.?m\\.?|p\\.?m\\.?)?";
 
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (!match) continue;
-    const endMeridiem = extractMeridiem(match[2]);
-    const startMeridiem = extractMeridiem(match[1]) ?? endMeridiem;
-    const start = parseClock(match[1], startMeridiem);
-    const end = parseClock(match[2], endMeridiem);
-    if (start && end) return { start, end };
+const RANGE_JOIN = "to|until|till|til|through|thru|-|–|—";
+
+function timeRangePatterns(flags: string): RegExp[] {
+  return [
+    new RegExp(
+      `\\b(?:from|between)\\s+(${RANGE_CLOCK})\\s*(?:${RANGE_JOIN}|and)\\s*(${RANGE_CLOCK})`,
+      flags
+    ),
+    new RegExp(
+      `\\b(${RANGE_CLOCK})\\s*(?:${RANGE_JOIN})\\s*(${RANGE_CLOCK})`,
+      flags
+    ),
+  ];
+}
+
+function toRange(
+  startRaw: string,
+  endRaw: string
+): { start: TimeOfDay; end: TimeOfDay } | null {
+  const endMeridiem = extractMeridiem(endRaw);
+  const startMeridiem = extractMeridiem(startRaw) ?? endMeridiem;
+  const start = parseClock(startRaw, startMeridiem);
+  let end = parseClock(endRaw, endMeridiem);
+  if (!start || !end) return null;
+
+  // "6-9" with no meridiem means an evening, not 6 PM through 9 AM.
+  if (!startMeridiem && !endMeridiem && start.hour >= 12 && end.hour < 12) {
+    const shifted = end.hour + 12;
+    if (shifted > start.hour && shifted <= 23) end = tod(shifted, end.minute);
   }
-  return null;
+
+  return { start, end };
+}
+
+/** Every time range in the text, in the order written ("9-12 and 2-5"). */
+function extractTimeRanges(
+  text: string
+): { start: TimeOfDay; end: TimeOfDay }[] {
+  const found: { start: TimeOfDay; end: TimeOfDay; at: number }[] = [];
+  const consumed: [number, number][] = [];
+
+  for (const pattern of timeRangePatterns("gi")) {
+    for (const match of text.matchAll(pattern)) {
+      const from = match.index ?? 0;
+      const to = from + match[0].length;
+      // The "from 9 to 5" pattern overlaps the bare "9 to 5" one.
+      if (consumed.some(([s, e]) => from < e && to > s)) continue;
+      const range = toRange(match[1], match[2]);
+      if (!range) continue;
+      consumed.push([from, to]);
+      found.push({ ...range, at: from });
+    }
+  }
+
+  return found
+    .sort((a, b) => a.at - b.at)
+    .map(({ start, end }) => ({ start, end }));
+}
+
+function extractTimeRange(text: string): { start: TimeOfDay; end: TimeOfDay } | null {
+  return extractTimeRanges(text)[0] ?? null;
+}
+
+/** "around 8", "about 8pm", "8ish" become an hour either side of that time. */
+function extractApproximateRange(
+  text: string
+): { start: TimeOfDay; end: TimeOfDay } | null {
+  const match =
+    text.match(
+      new RegExp(
+        `\\b(?:around|about|approx(?:imately)?|~)\\s*(${CLOCK_TOKEN})\\b`,
+        "i"
+      )
+    ) ?? text.match(/\b(\d{1,2}(?::\d{2})?)\s*-?ish\b/i);
+  if (!match) return null;
+
+  const center = parseClock(match[1]);
+  if (!center) return null;
+
+  const minutes = center.hour * 60 + center.minute;
+  return {
+    start: minutesToTod(Math.max(0, minutes - 60)),
+    end: minutesToTod(Math.min(24 * 60, minutes + 60)),
+  };
 }
 
 function extractTimeAfter(text: string): TimeOfDay | null {
@@ -264,6 +443,22 @@ function extractTimeAfter(text: string): TimeOfDay | null {
     /\bafter\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)\b/i
   );
   if (afterMatch) return parseClock(afterMatch[1]);
+
+  const onward = text.match(
+    new RegExp(`\\b(?:from\\s+)?(${CLOCK_TOKEN})\\s+onwards?\\b`, "i")
+  );
+  if (onward) return parseClock(onward[1]);
+
+  const startingAt = text.match(
+    new RegExp(`\\bstart(?:ing)?\\s+(?:at|from)\\s+(${CLOCK_TOKEN})\\b`, "i")
+  );
+  if (startingAt) return parseClock(startingAt[1]);
+
+  const asEarlyAs = text.match(
+    new RegExp(`\\bas\\s+early\\s+as\\s+(${CLOCK_TOKEN})\\b`, "i")
+  );
+  if (asEarlyAs) return parseClock(asEarlyAs[1]);
+
   return null;
 }
 
@@ -276,6 +471,131 @@ function extractTimeBefore(text: string): TimeOfDay | null {
     /\bbefore\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?)\b/i
   );
   if (beforeMatch) return parseClock(beforeMatch[1]);
+
+  const until = text.match(
+    new RegExp(`\\b(?:up\\s+)?(?:until|till|til)\\s+(${CLOCK_TOKEN})\\b`, "i")
+  );
+  if (until) return parseClock(until[1]);
+
+  const by = text.match(new RegExp(`\\bby\\s+(${CLOCK_TOKEN})\\b`, "i"));
+  if (by) return parseClock(by[1]);
+
+  const asLateAs = text.match(
+    new RegExp(`\\bas\\s+late\\s+as\\s+(${CLOCK_TOKEN})\\b`, "i")
+  );
+  if (asLateAs) return parseClock(asLateAs[1]);
+
+  return null;
+}
+
+const CLOCK_TOKEN =
+  "\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.?m\\.?|p\\.?m\\.?)?|noon|midnight";
+
+const DAY_TOKEN =
+  "mon(?:day)?s?|tue(?:s|sday)?s?|wed(?:nesday)?s?|thu(?:rs|rsday|r)?s?|fri(?:day)?s?|sat(?:urday)?s?|sun(?:day)?s?|weekdays?|weekends?|weeknights?";
+
+const DAY_PHRASE = `(?:${DAY_TOKEN})(?:\\s*(?:,|and|&|/)\\s*(?:${DAY_TOKEN}))*`;
+
+/**
+ * Rewrite phrasings whose negation words would otherwise be split as an
+ * exclusion marker (or read as availability) into canonical forms.
+ * Runs before clause splitting.
+ */
+function normalizePhrasing(input: string): string {
+  let text = input;
+
+  // "No preference" is flexibility, not a negation.
+  text = text.replace(
+    /\bno\s+(?:strong\s+)?preference\b|\b(?:i\s+)?(?:do\s+not|don'?t)\s+mind\b|\b(?:it\s+)?(?:does\s+not|doesn'?t)\s+matter\b/gi,
+    "anytime"
+  );
+
+  // Negative bounds keep the rest of the day, so express them as exclusions.
+  text = text.replace(
+    new RegExp(
+      `\\b(?:no\\s+later\\s+than|nothing\\s+after|not\\s+after)\\s+(${CLOCK_TOKEN})\\b`,
+      "gi"
+    ),
+    "except after $1"
+  );
+  text = text.replace(
+    new RegExp(
+      `\\b(?:no\\s+earlier\\s+than|nothing\\s+before|not\\s+before)\\s+(${CLOCK_TOKEN})\\b`,
+      "gi"
+    ),
+    "except before $1"
+  );
+
+  // "Mondays don't work" / "Mondays are bad" name a day to remove, not to keep.
+  text = text.replace(
+    new RegExp(
+      `\\b(${DAY_PHRASE})\\s+(?:do\\s+not|don'?t|does\\s+not|doesn'?t)\\s+work\\b`,
+      "gi"
+    ),
+    "except $1"
+  );
+  text = text.replace(
+    new RegExp(
+      `\\b(${DAY_PHRASE})\\s+(?:are|is)?\\s*(?:no\\s+good|bad|booked|busy)\\b`,
+      "gi"
+    ),
+    "except $1"
+  );
+
+  return text.replace(/\s{2,}/g, " ").trim();
+}
+
+/** Named parts of a day, as spans to remove when they appear in an exclusion. */
+const EXCLUSION_PERIODS: {
+  re: RegExp;
+  start: TimeOfDay;
+  end: TimeOfDay;
+}[] = [
+  { re: /\bafter\s+work\b|\bafter\s+hours?\b/i, start: tod(17), end: tod(0) },
+  { re: /\bbefore\s+work\b/i, start: tod(0), end: tod(9) },
+  { re: /\bafter\s+school\b|\bafter\s+class(?:es)?\b/i, start: tod(15), end: tod(18) },
+  { re: /\bafter\s+dinner\b/i, start: tod(19), end: tod(0) },
+  { re: /\bearly\s+mornings?\b|\bfirst\s+thing\b/i, start: tod(6), end: tod(9) },
+  { re: /\blate\s+mornings?\b/i, start: tod(10), end: tod(12) },
+  { re: /\bmid-?days?\b/i, start: tod(11), end: tod(14) },
+  { re: /\blunch\s*time\b|\blunch\s*break\b/i, start: tod(12), end: tod(13) },
+  { re: /\blate\s+afternoons?\b/i, start: tod(15), end: tod(18) },
+  { re: /\bearly\s+evenings?\b/i, start: tod(17), end: tod(19) },
+  { re: /\bday\s*time\b/i, start: tod(9), end: tod(17) },
+  { re: /\blate\s+nights?\b|\bnights?\b/i, start: tod(20), end: tod(0) },
+  { re: /\bevenings?\b/i, start: tod(17), end: tod(0) },
+  { re: /\bmornings?\b/i, start: tod(6), end: tod(12) },
+  { re: /\bafternoons?\b/i, start: tod(12), end: tod(17) },
+];
+
+/**
+ * Time span an exclusion clause removes ("after 8pm", "before noon", "evenings").
+ * Returns null when the clause names no time, which means the whole day is excluded.
+ */
+function extractExclusionTimeSpan(
+  text: string
+): { start: TimeOfDay; end: TimeOfDay } | null {
+  const range = extractTimeRange(text);
+  if (range) return range;
+
+  const after = text.match(new RegExp(`\\bafter\\s+(${CLOCK_TOKEN})\\b`, "i"));
+  if (after) {
+    const start = parseClock(after[1]);
+    if (start) return { start, end: tod(0) };
+  }
+
+  const before = text.match(new RegExp(`\\bbefore\\s+(${CLOCK_TOKEN})\\b`, "i"));
+  if (before) {
+    const end = parseClock(before[1]);
+    if (end) return { start: tod(0), end };
+  }
+
+  for (const period of EXCLUSION_PERIODS) {
+    if (period.re.test(text)) {
+      return { start: period.start, end: period.end };
+    }
+  }
+
   return null;
 }
 
@@ -313,28 +633,40 @@ function normalizeOverlappingRules(rules: AvailabilityRule[]): AvailabilityRule[
     order: number;
   };
 
-  const byDay = new Map<DayOfWeek, DayAssignment>();
+  const byDay = new Map<DayOfWeek, DayAssignment[]>();
 
   rules.forEach((rule, order) => {
     const days = rule.days?.length ? rule.days : ALL_DAYS;
     const specificity = ruleSpecificity(rule);
+    const assignment: DayAssignment = {
+      start: rule.start,
+      end: rule.end,
+      label: rule.label,
+      kind: rule.kind,
+      raw: rule.raw,
+      specificity,
+      order,
+    };
+
     for (const day of days) {
       const existing = byDay.get(day);
-      // Specific beats general; at the same specificity, later wins.
+      const current = existing?.[0];
+      if (!current) {
+        byDay.set(day, [assignment]);
+        continue;
+      }
+
+      // Windows named in one breath ("9-12 and 2-5") stack instead of overriding.
+      if (specificity === current.specificity && rule.raw === current.raw) {
+        existing.push(assignment);
+        continue;
+      }
+
+      // Otherwise specific beats general; at the same specificity, later wins.
       const wins =
-        !existing ||
-        specificity > existing.specificity ||
-        (specificity === existing.specificity && order > existing.order);
-      if (!wins) continue;
-      byDay.set(day, {
-        start: rule.start,
-        end: rule.end,
-        label: rule.label,
-        kind: rule.kind,
-        raw: rule.raw,
-        specificity,
-        order,
-      });
+        specificity > current.specificity ||
+        (specificity === current.specificity && order > current.order);
+      if (wins) byDay.set(day, [assignment]);
     }
   });
 
@@ -349,26 +681,26 @@ function normalizeOverlappingRules(rules: AvailabilityRule[]): AvailabilityRule[
 
   const groups: Group[] = [];
   for (const day of ALL_DAYS) {
-    const assignment = byDay.get(day);
-    if (!assignment) continue;
-    const match = groups.find(
-      (g) =>
-        sameTime(g.start, assignment.start) &&
-        sameTime(g.end, assignment.end) &&
-        g.label === assignment.label &&
-        g.kind === assignment.kind
-    );
-    if (match) {
-      match.days.push(day);
-    } else {
-      groups.push({
-        days: [day],
-        start: assignment.start,
-        end: assignment.end,
-        label: assignment.label,
-        kind: assignment.kind,
-        raw: assignment.raw,
-      });
+    for (const assignment of byDay.get(day) ?? []) {
+      const match = groups.find(
+        (g) =>
+          sameTime(g.start, assignment.start) &&
+          sameTime(g.end, assignment.end) &&
+          g.label === assignment.label &&
+          g.kind === assignment.kind
+      );
+      if (match) {
+        match.days.push(day);
+      } else {
+        groups.push({
+          days: [day],
+          start: assignment.start,
+          end: assignment.end,
+          label: assignment.label,
+          kind: assignment.kind,
+          raw: assignment.raw,
+        });
+      }
     }
   }
 
@@ -416,6 +748,55 @@ function isDayListCommaContinuation(left: string, right: string): boolean {
   return DAY_END_RE.test(left.trim()) && DAY_START_RE.test(right.trim());
 }
 
+/** True when a comma is continuing a list of time windows ("9-12, 2-5"). */
+function isTimeListCommaContinuation(left: string, right: string): boolean {
+  const bare = right.trim().replace(/^(?:and|&|or)\s+/i, "");
+  const onlyRange = new RegExp(
+    `^(?:${RANGE_CLOCK})\\s*(?:${RANGE_JOIN})\\s*(?:${RANGE_CLOCK})$`,
+    "i"
+  ).test(bare);
+  return onlyRange && extractTimeRange(left) !== null;
+}
+
+function hasDayExpression(text: string): boolean {
+  return daysForClause(text.toLowerCase()) !== undefined;
+}
+
+function hasTimeExpression(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    extractTimeRange(lower) !== null ||
+    extractApproximateRange(lower) !== null ||
+    extractTimeAfter(lower) !== null ||
+    extractTimeBefore(lower) !== null ||
+    [...ANCHORED_PERIODS, ...NAMED_PERIODS].some((p) => p.re.test(lower))
+  );
+}
+
+/**
+ * Split "Saturday afternoon or Sunday morning" into two clauses. Only splits
+ * when both sides name their own day and their own time, so day enumerations
+ * ("friday, saturday and thursday") and shared scopes ("Tue and Thu after 5")
+ * stay together.
+ */
+function splitOnConjunctions(part: string): string[] {
+  const conjunction = /\s+(?:and|&|or)\s+/gi;
+  let match: RegExpExecArray | null;
+  while ((match = conjunction.exec(part)) !== null) {
+    const left = part.slice(0, match.index);
+    const right = part.slice(match.index + match[0].length);
+    if (
+      hasDayExpression(left) &&
+      hasDayExpression(right) &&
+      hasTimeExpression(left) &&
+      hasTimeExpression(right)
+    ) {
+      return [left, ...splitOnConjunctions(right)];
+    }
+  }
+  return [part];
+}
+
 /**
  * Split one availability note into separate rule clauses.
  * Sentence boundaries always split. Commas split different scopes
@@ -442,7 +823,10 @@ function splitClauses(raw: string): string[] {
     let current = commaParts[0];
     for (let i = 1; i < commaParts.length; i++) {
       const next = commaParts[i];
-      if (isDayListCommaContinuation(current, next)) {
+      if (
+        isDayListCommaContinuation(current, next) ||
+        isTimeListCommaContinuation(current, next)
+      ) {
         current = `${current}, ${next}`;
       } else {
         withCommaScopes.push(current);
@@ -454,13 +838,26 @@ function splitClauses(raw: string): string[] {
 
   const refined: string[] = [];
   for (const part of withCommaScopes) {
-    // If a fragment still mixes weekdays + weekends, split on "and" / space boundary.
+    const byConjunction = splitOnConjunctions(part);
+    if (byConjunction.length > 1) {
+      refined.push(...byConjunction);
+      continue;
+    }
+
+    // If a fragment still mixes weekdays + weekends, split on "and" / space
+    // boundary. "and" is tried first so the times stay with their own scope.
     const mixed =
       part.match(
-        /^([\s\S]*?\bweekdays?\b[\s\S]*?)(?:\s+and\s+|\s+)([\s\S]*\bweekends?\b[\s\S]*)$/i
+        /^([\s\S]*\bweekdays?\b[\s\S]*?)\s+and\s+([\s\S]*\bweekends?\b[\s\S]*)$/i
       ) ||
       part.match(
-        /^([\s\S]*?\bweekends?\b[\s\S]*?)(?:\s+and\s+|\s+)([\s\S]*\bweekdays?\b[\s\S]*)$/i
+        /^([\s\S]*\bweekends?\b[\s\S]*?)\s+and\s+([\s\S]*\bweekdays?\b[\s\S]*)$/i
+      ) ||
+      part.match(
+        /^([\s\S]*?\bweekdays?\b[\s\S]*?)\s+([\s\S]*\bweekends?\b[\s\S]*)$/i
+      ) ||
+      part.match(
+        /^([\s\S]*?\bweekends?\b[\s\S]*?)\s+([\s\S]*\bweekdays?\b[\s\S]*)$/i
       );
     if (mixed) {
       refined.push(mixed[1], mixed[2]);
@@ -865,85 +1262,239 @@ export function serializeStructuredAvailability(
   return parts.join(". ").replace(/\s+/g, " ").trim();
 }
 
-function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
+type PeriodRule = {
+  re: RegExp;
+  kind: AvailabilityKind;
+  start: TimeOfDay;
+  end: TimeOfDay;
+  label?: string;
+  /** Days implied by the phrase itself, used when the clause names none. */
+  defaultDays?: DayOfWeek[];
+};
+
+/**
+ * Phrases anchored to an event in the day. Checked before "anytime" so
+ * "free anytime after dinner" keeps the dinner bound.
+ */
+const ANCHORED_PERIODS: PeriodRule[] = [
+  {
+    re: /\bafter\s+work\b|\bafter\s+hours?\b/,
+    kind: "weekdays_after",
+    start: tod(17),
+    end: tod(23),
+    label: "After work",
+    defaultDays: WEEKDAYS,
+  },
+  {
+    re: /\bbefore\s+work\b/,
+    kind: "mornings",
+    start: tod(6),
+    end: tod(9),
+    label: "Before work",
+    defaultDays: WEEKDAYS,
+  },
+  {
+    re: /\bduring\s+work\s+hours?\b|\bwork\s+hours?\b/,
+    kind: "between_times",
+    start: tod(9),
+    end: tod(17),
+    label: "During work hours",
+    defaultDays: WEEKDAYS,
+  },
+  {
+    re: /\bafter\s+school\b|\bafter\s+class(?:es)?\b/,
+    kind: "afternoons",
+    start: tod(15),
+    end: tod(18),
+    label: "After school",
+    defaultDays: WEEKDAYS,
+  },
+  {
+    re: /\bafter\s+dinner\b/,
+    kind: "evenings",
+    start: tod(19),
+    end: tod(23),
+    label: "After dinner",
+  },
+  {
+    re: /\bbefore\s+bed\b/,
+    kind: "nights",
+    start: tod(20),
+    end: tod(23),
+    label: "Before bed",
+  },
+  {
+    re: /\bfirst\s+thing\b/,
+    kind: "mornings",
+    start: tod(6),
+    end: tod(9),
+    label: "First thing",
+  },
+  {
+    re: /\blunch\s*time\b|\bat\s+lunch\b|\bover\s+lunch\b/,
+    kind: "afternoons",
+    start: tod(12),
+    end: tod(13),
+    label: "Lunchtime",
+  },
+];
+
+/** Named parts of the day, most specific first. */
+const NAMED_PERIODS: PeriodRule[] = [
+  {
+    re: /\bweeknights?\b/,
+    kind: "evenings",
+    start: tod(17),
+    end: tod(23),
+    label: "Evenings",
+    defaultDays: WEEKDAYS,
+  },
+  {
+    re: /\bearly\s+mornings?\b/,
+    kind: "mornings",
+    start: tod(6),
+    end: tod(9),
+  },
+  {
+    re: /\blate\s+mornings?\b/,
+    kind: "mornings",
+    start: tod(10),
+    end: tod(12),
+  },
+  {
+    re: /\bmid-?days?\b/,
+    kind: "afternoons",
+    start: tod(11),
+    end: tod(14),
+  },
+  {
+    re: /\blate\s+afternoons?\b/,
+    kind: "afternoons",
+    start: tod(15),
+    end: tod(18),
+  },
+  {
+    re: /\bearly\s+evenings?\b/,
+    kind: "evenings",
+    start: tod(17),
+    end: tod(19),
+  },
+  {
+    re: /\blate\s+nights?\b|\bnight\s*owl\b/,
+    kind: "nights",
+    start: tod(20),
+    end: tod(2),
+  },
+  {
+    re: /\bday\s*time\b/,
+    kind: "between_times",
+    start: tod(9),
+    end: tod(17),
+    label: "Daytime",
+  },
+  {
+    re: /\bevenings?\b/,
+    kind: "evenings",
+    start: tod(17),
+    end: tod(23),
+    label: "Evenings",
+  },
+  {
+    re: /\bmornings?\b|\bbefore\s+noon\b/,
+    kind: "mornings",
+    start: tod(6),
+    end: tod(12),
+  },
+  {
+    re: /\bafternoons?\b/,
+    kind: "afternoons",
+    start: tod(12),
+    end: tod(17),
+  },
+  {
+    re: /\bnights?\b/,
+    kind: "nights",
+    start: tod(20),
+    end: tod(0),
+  },
+];
+
+function matchPeriod(
+  text: string,
+  table: PeriodRule[],
+  days: DayOfWeek[] | undefined,
+  raw: string
+): AvailabilityRule | null {
+  for (const period of table) {
+    if (!period.re.test(text)) continue;
+    const rule: AvailabilityRule = {
+      kind: period.kind,
+      days: days ?? period.defaultDays,
+      start: { ...period.start },
+      end: { ...period.end },
+      raw,
+    };
+    if (period.label) rule.label = period.label;
+    return rule;
+  }
+  return null;
+}
+
+/** Rules for one clause. A clause naming two windows produces two rules. */
+function parseClauseRules(clause: string, rawFull: string): AvailabilityRule[] {
   const text = clause.toLowerCase().trim();
-  if (!text) return null;
+  if (!text) return [];
 
   const days = daysForClause(text);
-  const range = extractTimeRange(text);
+  const ranges = extractTimeRanges(text);
+  const approximate = ranges.length === 0 ? extractApproximateRange(text) : null;
   const after = extractTimeAfter(text);
   const anytime = hasAnytimePhrase(text);
   const flexible = hasFlexiblePhrase(text);
   const raw = clause.trim() || rawFull;
 
-  // 1. Exact time ranges win
-  if (range) {
-    return {
+  const one = (rule: AvailabilityRule | null): AvailabilityRule[] =>
+    rule ? [rule] : [];
+
+  // 1. Exact time ranges win, and a clause may name more than one
+  const explicit = approximate ? [approximate] : ranges;
+  if (explicit.length > 0) {
+    return explicit.map((range) => ({
       kind: days ? "specific_days" : "between_times",
       days,
       start: range.start,
       end: range.end,
       raw,
-    };
+    }));
   }
 
   // 2. Explicit "after <clock time>" → until midnight (12 AM)
   if (after) {
-    return {
+    return one({
       kind: days ? "weekdays_after" : "after_time",
       days: days ?? (hasWeekdays(text) ? WEEKDAYS : undefined),
       start: after,
       end: tod(0),
       raw,
-    };
+    });
   }
 
   // 3. Explicit "before <clock time>" → from midnight until that time
   const before = extractTimeBefore(text);
   if (before) {
-    return {
+    return one({
       kind: days ? "specific_days" : "between_times",
       days: days ?? (hasWeekdays(text) ? WEEKDAYS : undefined),
       start: tod(0),
       end: before,
       label: "Before",
       raw,
-    };
+    });
   }
 
-  // 4. Work-relative phrases (must beat "anytime" when both appear in unsplit text)
-  if (/\bafter\s+work\b|\bafter\s+hours?\b|\bafter\s+dinner\b/.test(text)) {
-    return {
-      kind: "weekdays_after",
-      days: days ?? WEEKDAYS,
-      start: tod(17),
-      end: tod(23),
-      label: "After work",
-      raw,
-    };
-  }
-
-  if (/\bbefore\s+work\b/.test(text)) {
-    return {
-      kind: "mornings",
-      days: days ?? WEEKDAYS,
-      start: tod(6),
-      end: tod(9),
-      label: "Before work",
-      raw,
-    };
-  }
-
-  if (/\bduring\s+work\s+hours?\b|\bwork\s+hours?\b/.test(text)) {
-    return {
-      kind: "between_times",
-      days: days ?? WEEKDAYS,
-      start: tod(9),
-      end: tod(17),
-      label: "During work hours",
-      raw,
-    };
-  }
+  // 4. Event-anchored phrases (must beat "anytime" when both appear in unsplit text)
+  const anchored = matchPeriod(text, ANCHORED_PERIODS, days, raw);
+  if (anchored) return [anchored];
 
   // 5. Anytime / all day (only when said) — only case that assumes a default window
   if (anytime) {
@@ -954,7 +1505,7 @@ function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
         : hasWeekdays(text)
           ? WEEKDAYS
           : undefined);
-    return {
+    return one({
       kind: scopedDays
         ? hasWeekends(text) && !hasWeekdays(text)
           ? "weekends_anytime"
@@ -965,73 +1516,37 @@ function parseClause(clause: string, rawFull: string): AvailabilityRule | null {
       end: { ...ANYTIME_END },
       label: "Anytime",
       raw,
-    };
+    });
   }
 
-  // 6. Vague flexible language (no exact times)
+  // 6. Named parts of the day
+  const named = matchPeriod(text, NAMED_PERIODS, days, raw);
+  if (named) return [named];
+
+  // 7. Vague flexible language, only once no part of the day was named, so
+  // "usually free evenings" keeps its evenings.
   if (flexible && !days) {
-    return {
+    return one({
       kind: "broad",
       start: tod(8),
       end: tod(22),
       raw,
-    };
-  }
-
-  if (/\bevenings?\b/.test(text)) {
-    return {
-      kind: "evenings",
-      days,
-      start: tod(17),
-      end: tod(23),
-      label: "Evenings",
-      raw,
-    };
-  }
-
-  if (/\bmornings?\b|\bbefore\s+noon\b/.test(text)) {
-    return {
-      kind: "mornings",
-      days,
-      start: tod(6),
-      end: tod(12),
-      raw,
-    };
-  }
-
-  if (/\bafternoons?\b/.test(text)) {
-    return {
-      kind: "afternoons",
-      days,
-      start: tod(12),
-      end: tod(17),
-      raw,
-    };
-  }
-
-  if (/\blate\s+nights?\b|\bnight\s*owl\b/.test(text)) {
-    return {
-      kind: "nights",
-      days,
-      start: tod(20),
-      end: tod(2),
-      raw,
-    };
+    });
   }
 
   // Day-only: named days / weekdays / weekends with no times — never invent a window.
   if (days) {
-    return {
+    return one({
       kind:
         hasWeekends(text) && !hasWeekdays(text)
           ? "weekends_anytime"
           : "specific_days",
       days,
       raw,
-    };
+    });
   }
 
-  return null;
+  return [];
 }
 
 function extractPreferredFromBut(text: string): AvailabilityPreference | null {
@@ -1637,32 +2152,19 @@ function parseExclusionSegment(
 
   working = working.replace(/\s{2,}/g, " ").trim();
 
-  // Time-range exclusions ("from 12pm to 1pm", "8-9 PM", "between noon and 2")
-  const range = extractTimeRange(working);
+  // A named time ("after 8pm", "before noon", "evenings", "12pm to 1pm") only
+  // removes that span from the day. Without one, the whole day is excluded.
+  const span = extractExclusionTimeSpan(working);
   const namedDays = daysForClause(working) ?? extractDays(working);
-  if (range) {
+  if (span) {
     timeExclusions.push({
-      start: range.start,
-      end: range.end,
+      start: span.start,
+      end: span.end,
       days: namedDays.length > 0 ? namedDays : contextDays,
       label: text.trim(),
     });
-    // Strip clock tokens so leftover day names aren't double-counted as full-day blocks
-    working = working
-      .replace(
-        /\b(?:from|between)\s+\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\s*(?:to|and|-|–|—)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?/gi,
-        " "
-      )
-      .replace(
-        /\b\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?\s*(?:to|-|–|—)\s*\d{1,2}(?::\d{2})?\s*(?:am|pm|a\.?m\.?|p\.?m\.?)?/gi,
-        " "
-      )
-      .replace(/\b(?:noon|midnight)\b/gi, " ")
-      .replace(/\s{2,}/g, " ")
-      .trim();
   } else {
-    // Remaining weekday names are recurring full-day exclusions
-    for (const day of extractDays(working)) {
+    for (const day of namedDays) {
       excludedDaySet.add(day);
     }
   }
@@ -1732,7 +2234,9 @@ function applyTimeExclusions(
   const result: AvailabilityRule[] = [];
 
   for (const rule of rules) {
-    if (!rule.start || !rule.end) {
+    // Day-only rules cover the whole day, so a time exclusion still applies.
+    const dayOnly = !rule.start && !rule.end;
+    if (!dayOnly && (!rule.start || !rule.end)) {
       result.push(rule);
       continue;
     }
@@ -1775,7 +2279,7 @@ function applyTimeExclusions(
     });
 
     let windows: { start: TimeOfDay; end: TimeOfDay }[] = [
-      { start: rule.start, end: rule.end },
+      { start: rule.start ?? tod(0), end: rule.end ?? tod(0) },
     ];
     for (const cut of cuts) {
       windows = windows.flatMap((w) =>
@@ -1798,7 +2302,10 @@ function applyTimeExclusions(
 }
 
 function isLunchBreakClause(text: string): boolean {
-  return /\blunch(?:\s+break)?\b/i.test(text);
+  // "Free at lunchtime" offers the hour, it does not block it.
+  if (/\bfree\b|\bavailable\b/i.test(text)) return false;
+  if (/\blunch\s*break\b/i.test(text)) return true;
+  return /\blunch\b/i.test(text) && extractTimeRange(text) !== null;
 }
 
 function parseLunchExclusion(
@@ -1878,16 +2385,19 @@ export function parseAvailabilityInput(
       summary: confirmation.summary,
       detail: "",
       debugLines: confirmation.debugLines,
+      understood: false,
     };
   }
 
+  const normalized = normalizePhrasing(raw);
+
   // Pull embedded date overrides (e.g. "not tomorrow") without peeling later clauses.
   const { exceptions: baseExceptions, remainder } = extractExceptionsFromText(
-    raw,
+    normalized,
     now
   );
 
-  const recurringSource = remainder.trim() || raw;
+  const recurringSource = remainder.trim() || normalized;
   const text = recurringSource.toLowerCase();
   const clauses = splitClauses(recurringSource);
 
@@ -1922,18 +2432,21 @@ export function parseAvailabilityInput(
       const availabilityText = base.trim();
 
       if (availabilityText) {
-        const rule = parseClause(availabilityText, raw);
-        if (rule) {
-          rules.push(rule);
-          const remembered = rememberAvailabilityDays(availabilityText, rule);
+        const parsed = parseClauseRules(availabilityText, raw);
+        rules.push(...parsed);
+        if (parsed[0]) {
+          const remembered = rememberAvailabilityDays(
+            availabilityText,
+            parsed[0]
+          );
           if (remembered) lastAvailabilityDays = remembered;
         }
       } else if (exclusionTexts.length === 0) {
         // Whole clause may still be availability (no exclusion marker).
-        const rule = parseClause(clause, raw);
-        if (rule) {
-          rules.push(rule);
-          const remembered = rememberAvailabilityDays(clause, rule);
+        const parsed = parseClauseRules(clause, raw);
+        rules.push(...parsed);
+        if (parsed[0]) {
+          const remembered = rememberAvailabilityDays(clause, parsed[0]);
           if (remembered) lastAvailabilityDays = remembered;
         }
       }
@@ -1945,8 +2458,7 @@ export function parseAvailabilityInput(
     }
 
     if (rules.length === 0 && timeExclusions.length === 0) {
-      const fallback = parseClause(recurringSource, raw);
-      if (fallback) rules.push(fallback);
+      rules.push(...parseClauseRules(recurringSource, raw));
     }
 
     if (rules.length === 0 && timeExclusions.length === 0) {
@@ -1997,13 +2509,27 @@ export function parseAvailabilityInput(
     exceptions.push(ex);
   }
 
+  // "Nothing after 9pm" says what to avoid, which implies the rest is open.
+  // Day-only exclusions ("No Sundays") stay a removal with no implied base.
+  if (rules.length === 0 && timeExclusions.length > 0) {
+    rules.push({
+      kind: "fully_flexible",
+      start: { ...ANYTIME_START },
+      end: { ...ANYTIME_END },
+      label: "Anytime",
+      raw,
+    });
+  }
+
   // Fallback defaults only when nothing else was understood.
+  let understood = true;
   if (
     rules.length === 0 &&
     timeExclusions.length === 0 &&
     exceptions.length === 0 &&
     excludedDays.length === 0
   ) {
+    understood = false;
     rules.push(
       {
         kind: "between_times",
@@ -2066,6 +2592,7 @@ export function parseAvailabilityInput(
     flexibility,
     exceptions,
     structured,
+    understood,
     ...confirmation,
   };
 }

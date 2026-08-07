@@ -239,7 +239,7 @@ export function AvailabilityInterpretation({
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(() => cloneStructured(parsed.structured));
 
-  if (parsed.debugLines.length === 0) return null;
+  if (parsed.debugLines.length === 0 && parsed.understood) return null;
 
   if (editing) {
     return (
@@ -359,19 +359,30 @@ export function AvailabilityInterpretation({
         setEditing(true);
       }}
       className="w-full rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5 text-left transition hover:border-ocean/35 hover:bg-ocean/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean/30"
-      aria-label="Adjust availability"
+      aria-label={
+        parsed.understood ? "Adjust availability" : "Add availability manually"
+      }
     >
-      <p className="text-sm font-medium text-ink">{parsed.summary}</p>
-      <ul className="mt-1.5 space-y-1">
-        {parsed.debugLines.map((line) => (
-          <li key={line} className="text-sm text-ink">
-            <span className="text-ocean" aria-hidden>
-              ✓{" "}
-            </span>
-            {line}
-          </li>
-        ))}
-      </ul>
+      {parsed.understood ? (
+        <>
+          <p className="text-sm font-medium text-ink">{parsed.summary}</p>
+          <ul className="mt-1.5 space-y-1">
+            {parsed.debugLines.map((line) => (
+              <li key={line} className="text-sm text-ink">
+                <span className="text-ocean" aria-hidden>
+                  ✓{" "}
+                </span>
+                {line}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : (
+        <p className="text-sm text-ink">
+          I don&apos;t understand that. Click this box to add your availability
+          manually.
+        </p>
+      )}
     </button>
   );
 }
