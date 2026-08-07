@@ -375,7 +375,11 @@ export function MobileCreateStudio({
           </div>
 
           <div className="postcard-celebrate-enter mx-auto flex w-full justify-center">
-            <FlippablePostcard catchUp={finished.catchUp} large />
+            <FlippablePostcard
+              catchUp={finished.catchUp}
+              large
+              autoFlipToBackAfterMs={1000}
+            />
           </div>
 
           <div className="mt-6 flex flex-col gap-2.5 animate-fade-rise">

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { CatchUp, MeetingSlot, Participant } from "@/lib/types";
+import { InteractivePostcard } from "./InteractivePostcard";
 import { PostcardBackContent, PostcardFrontContent } from "./PostcardFaces";
 
 function photoIdentity(catchUp: CatchUp): string {
@@ -14,6 +15,8 @@ export function FlippablePostcard({
   isConfirmed = false,
   moreCount = 0,
   initialSide = "front",
+  /** Show the front briefly, then flip to the back (teaches that it’s flippable). */
+  autoFlipToBackAfterMs,
   flipped: flippedProp,
   onFlipChange,
   showFlipButton = true,
@@ -42,6 +45,7 @@ export function FlippablePostcard({
   isConfirmed?: boolean;
   moreCount?: number;
   initialSide?: "front" | "back";
+  autoFlipToBackAfterMs?: number;
   /** Controlled flip state. When set, parent owns flip. */
   flipped?: boolean;
   onFlipChange?: (flipped: boolean) => void;
@@ -69,16 +73,54 @@ export function FlippablePostcard({
 }) {
   const controlled = flippedProp !== undefined;
   const [internalFlipped, setInternalFlipped] = useState(
-    initialSide === "back"
+    autoFlipToBackAfterMs != null ? false : initialSide === "back"
   );
+  const [isMobile, setIsMobile] = useState(false);
   const flipped = controlled ? Boolean(flippedProp) : internalFlipped;
   const hasActions = Boolean(onCopyLink || onShare || onJoin || onEdit);
   const photoKey = photoIdentity(catchUp);
   const prevPhotoKeyRef = useRef(photoKey);
+  const onFlipChangeRef = useRef(onFlipChange);
+  onFlipChangeRef.current = onFlipChange;
 
   useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    if (autoFlipToBackAfterMs != null) return;
     if (!controlled) setInternalFlipped(initialSide === "back");
-  }, [controlled, initialSide]);
+  }, [controlled, initialSide, autoFlipToBackAfterMs]);
+
+  // Front briefly, then flip to back so the photo and flip affordance are clear.
+  useEffect(() => {
+    if (autoFlipToBackAfterMs == null) return;
+
+    const setFlippedState = (next: boolean) => {
+      if (!controlled) setInternalFlipped(next);
+      onFlipChangeRef.current?.(next);
+    };
+
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    if (reduceMotion) {
+      setFlippedState(true);
+      return;
+    }
+
+    setFlippedState(false);
+    const timer = window.setTimeout(() => {
+      setFlippedState(true);
+    }, autoFlipToBackAfterMs);
+
+    return () => window.clearTimeout(timer);
+  }, [autoFlipToBackAfterMs, catchUp.id, controlled]);
 
   // When the postcard photo changes, flip to the front so the image is visible.
   useEffect(() => {
@@ -97,6 +139,10 @@ export function FlippablePostcard({
   const secondaryBtn =
     "shrink-0 rounded-xl border border-ink/15 bg-white/80 px-4 py-2.5 text-sm font-medium text-ink transition hover:border-ocean/40";
 
+  // Match landing: front rests askew with idle sway; back sits straight and still.
+  const restingRotateZ = flipped ? 0 : isMobile ? -1.5 : -4;
+  const showFrontIdle = !flipped;
+
   return (
     <div
       className={[
@@ -110,50 +156,57 @@ export function FlippablePostcard({
         .join(" ")}
       style={transitionName ? { viewTransitionName: transitionName } : undefined}
     >
-      <div
-        className={`postcard-stage ${disableFaceClick ? "" : "cursor-pointer"}`}
-        onClick={disableFaceClick ? undefined : flip}
-        onKeyDown={
-          disableFaceClick
-            ? undefined
-            : (e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  flip();
-                }
-              }
-        }
-        role={disableFaceClick ? undefined : "button"}
-        tabIndex={disableFaceClick ? undefined : 0}
-        aria-label={
-          disableFaceClick
-            ? undefined
-            : flipped
-              ? "Flip to front of postcard"
-              : "Flip to back of postcard"
-        }
+      <InteractivePostcard
+        restingRotateZ={restingRotateZ}
+        ambientIdle={showFrontIdle}
+        maxTiltDesktop={showFrontIdle ? 8 : 0}
+        maxTiltMobile={showFrontIdle ? 5 : 0}
       >
-        <div className={`postcard-flipper ${flipped ? "is-flipped" : ""}`}>
-          <div className="postcard-face postcard-face--front">
-            <PostcardFrontContent catchUp={catchUp} />
-          </div>
-          <div className="postcard-face postcard-face--back">
-            <PostcardBackContent
-              catchUp={catchUp}
-              bestSlot={bestSlot}
-              isConfirmed={isConfirmed}
-              moreCount={moreCount}
-              onViewMore={onViewMore}
-              onAddParticipant={onAddParticipant}
-              onEditParticipant={onEditParticipant}
-              canEditParticipant={canEditParticipant}
-              onViewAvailability={onViewAvailability}
-              onUpdateTitle={onUpdateTitle}
-              onUpdateMessage={onUpdateMessage}
-            />
+        <div
+          className={`postcard-stage ${disableFaceClick ? "" : "cursor-pointer"}`}
+          onClick={disableFaceClick ? undefined : flip}
+          onKeyDown={
+            disableFaceClick
+              ? undefined
+              : (e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    flip();
+                  }
+                }
+          }
+          role={disableFaceClick ? undefined : "button"}
+          tabIndex={disableFaceClick ? undefined : 0}
+          aria-label={
+            disableFaceClick
+              ? undefined
+              : flipped
+                ? "Flip to front of postcard"
+                : "Flip to back of postcard"
+          }
+        >
+          <div className={`postcard-flipper ${flipped ? "is-flipped" : ""}`}>
+            <div className="postcard-face postcard-face--front">
+              <PostcardFrontContent catchUp={catchUp} />
+            </div>
+            <div className="postcard-face postcard-face--back">
+              <PostcardBackContent
+                catchUp={catchUp}
+                bestSlot={bestSlot}
+                isConfirmed={isConfirmed}
+                moreCount={moreCount}
+                onViewMore={onViewMore}
+                onAddParticipant={onAddParticipant}
+                onEditParticipant={onEditParticipant}
+                canEditParticipant={canEditParticipant}
+                onViewAvailability={onViewAvailability}
+                onUpdateTitle={onUpdateTitle}
+                onUpdateMessage={onUpdateMessage}
+              />
+            </div>
           </div>
         </div>
-      </div>
+      </InteractivePostcard>
 
       {hasActions ? (
         <div className="mt-4 flex w-full flex-wrap items-center gap-2">

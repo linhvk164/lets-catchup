@@ -48,9 +48,9 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
         </div>
       ) : null}
 
-      {/* Postage stamp — clipped slightly off the right edge */}
+      {/* Postage stamp — top-right, clipped slightly off the edge */}
       <div
-        className="postcard-layer-stamp pointer-events-none absolute bottom-8 -right-5 z-[2] w-[42%] max-w-[10rem] sm:bottom-10 sm:-right-6 sm:max-w-[11.5rem]"
+        className="postcard-layer-stamp pointer-events-none absolute -top-3 -right-5 z-[2] w-[42%] max-w-[10rem] sm:-top-4 sm:-right-6 sm:max-w-[11.5rem]"
         aria-hidden
       >
         <Image
@@ -219,11 +219,11 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
   const title = catchUp.title?.trim() ?? "";
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col overflow-hidden">
       <div className="min-h-0 w-full flex-1">
         <CitiesFront photo={catchUp.photo} />
       </div>
-      <div className="postcard-layer-text shrink-0 space-y-0.5 px-3.5 py-2.5 text-left sm:space-y-1 sm:px-5 sm:py-3.5">
+      <div className="postcard-layer-text relative z-[1] shrink-0 space-y-0.5 px-3.5 py-2.5 pr-14 text-left sm:space-y-1 sm:px-5 sm:py-3.5 sm:pr-16">
         {title ? (
           <h2 className="font-display text-lg tracking-tight text-ink sm:text-2xl lg:text-3xl">
             {title}
@@ -248,6 +248,20 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
             <PostcardWriteLine inline label="Your name" />
           </p>
         ) : null}
+      </div>
+      {/* Overlaps photo + white band; clipped on bottom/right */}
+      <div
+        className="postcard-layer-stamp pointer-events-none absolute -bottom-5 -right-6 z-[3] sm:-bottom-6 sm:-right-8"
+        aria-hidden
+      >
+        <Image
+          src="/images/logo/flip-me-stamp.svg"
+          alt=""
+          width={210}
+          height={209}
+          className="h-24 w-auto select-none opacity-30 sm:h-28 lg:h-32"
+          unoptimized
+        />
       </div>
     </div>
   );

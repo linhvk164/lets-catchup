@@ -49,6 +49,7 @@ export function CatchUpInvitationClient() {
   const [copied, setCopied] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
+  const [postcardFlipped, setPostcardFlipped] = useState(false);
   const [editorMode, setEditorMode] = useState<"add" | "edit" | "join" | null>(
     null
   );
@@ -63,13 +64,15 @@ export function CatchUpInvitationClient() {
       setViewer(existing);
       return;
     }
-    // First open of a shared link in this browser → invitee.
+    // First open of a shared link in this browser → invitee + welcome confetti.
     markAsInvitee(catchUp.id);
     setViewer({ role: "invitee" });
+    setCelebrate(true);
   }, [catchUp]);
 
   useEffect(() => {
     if (!catchUp) return;
+    // Creator just finished writing — same confetti as invitees get on first open.
     if (consumePostcardCelebrate(catchUp.id)) {
       setCelebrate(true);
     }
@@ -205,6 +208,16 @@ export function CatchUpInvitationClient() {
               Send this postcard to your friends.
             </p>
           ) : null}
+          {!isCreator ? (
+            <button
+              type="button"
+              onClick={() => setPostcardFlipped((v) => !v)}
+              className="mt-1 text-sm text-ink-soft transition hover:text-ink"
+              aria-label="Click on the postcard to flip it"
+            >
+              click on the postcard to flip it.
+            </button>
+          ) : null}
         </div>
 
         <div
@@ -218,7 +231,10 @@ export function CatchUpInvitationClient() {
             bestSlot={bestSlot}
             isConfirmed={Boolean(selectedSlot)}
             moreCount={moreCount}
-            initialSide="back"
+            autoFlipToBackAfterMs={1000}
+            flipped={postcardFlipped}
+            onFlipChange={setPostcardFlipped}
+            showFlipButton={isCreator}
             large
             onViewMore={scrollToRecommendations}
             onEditParticipant={openEditParticipant}
