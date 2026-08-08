@@ -104,7 +104,7 @@ function AvailabilitySection({
           }}
           className="postcard-meta shrink-0 text-ocean underline underline-offset-2 transition-colors hover:text-ocean-deep"
         >
-          View all schedules
+           See everyone's schedule
         </button>
       ) : null}
     </div>

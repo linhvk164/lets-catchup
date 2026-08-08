@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { DateTime } from "luxon";
 import { FlippablePostcard } from "@/components/postcard";
 import {
   draftToParticipant,
@@ -55,7 +56,11 @@ export function CatchUpInvitationClient() {
     null
   );
   const [editing, setEditing] = useState<Participant | null>(null);
-  const [joinedToastId, setJoinedToastId] = useState(0);
+  const [toast, setToast] = useState<{
+    id: number;
+    title: string;
+    message: string;
+  } | null>(null);
   const recommendationsRef = useRef<HTMLElement>(null);
   const postcardRef = useRef<HTMLDivElement>(null);
 
@@ -145,6 +150,17 @@ export function CatchUpInvitationClient() {
 
   function handleSelectSlot(slot: MeetingSlot) {
     selectSlot(slot);
+    const first = slot.localTimes[0];
+    const local = DateTime.fromISO(slot.startUtc, { zone: "utc" }).setZone(
+      first?.timezone ?? "UTC"
+    );
+    const dateLabel = local.toFormat("cccc, LLLL d");
+    const timeLabel = first?.timeLabel ?? local.toFormat("h:mm a");
+    setToast({
+      id: Date.now(),
+      title: "It's a date!",
+      message: `${dateLabel} at ${timeLabel} is on the postcard.`,
+    });
     window.setTimeout(() => scrollToPostcard(), 80);
   }
 
@@ -169,11 +185,15 @@ export function CatchUpInvitationClient() {
     if (editorMode === "join" && catchUp) {
       markAsInvitee(catchUp.id, newId);
       setViewer({ role: "invitee", participantId: newId });
-      setJoinedToastId((n) => n + 1);
+      setToast({
+        id: Date.now(),
+        title: "You're in!",
+        message: "Your availability has been added to the invitation.",
+      });
     }
   }
 
-  const dismissJoinedToast = useCallback(() => setJoinedToastId(0), []);
+  const dismissToast = useCallback(() => setToast(null), []);
 
   if (loading || (catchUp && !viewer)) {
     return (
@@ -203,12 +223,12 @@ export function CatchUpInvitationClient() {
     <div className="flex min-h-full flex-col">
       <SiteHeader compact />
       {celebrate ? <ConfettiBurst active /> : null}
-      {joinedToastId > 0 ? (
+      {toast ? (
         <Toast
-          key={joinedToastId}
-          title="You're in!"
-          message="Your availability has been added to the invitation."
-          onDismiss={dismissJoinedToast}
+          key={toast.id}
+          title={toast.title}
+          message={toast.message}
+          onDismiss={dismissToast}
         />
       ) : null}
       <main className="mx-auto w-full max-w-[36rem] flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5 lg:max-w-4xl">
@@ -361,7 +381,7 @@ export function CatchUpInvitationClient() {
                 className="mt-3 text-sm font-medium text-ocean underline underline-offset-2 transition hover:text-ocean-deep"
                 onClick={() => setTimelineOpen(true)}
               >
-                View all schedules
+                See everyone's schedule
               </button>
             </div>
           ) : (
