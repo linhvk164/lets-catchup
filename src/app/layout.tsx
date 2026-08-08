@@ -77,13 +77,13 @@ export const metadata: Metadata = {
           : "http://localhost:3000")
   ),
   title: {
-    default: "Let's Catch Up: Time Zone Scheduler for Friends Worldwide",
+    default: "Group Scheduling for Friends Across Timezones: Let's Catch Up",
     template: "%s | Let's Catch Up",
   },
   description:
     "Find the best meeting time across time zones and invite friends with a beautiful digital postcard. Free, simple, and designed for long-distance friendships.",
   openGraph: {
-    title: "Let's Catch Up: Time Zone Scheduler for Friends Worldwide",
+    title: "Group Scheduling for Friends Across Timezones: Let's Catch Up",
     description:
       "Find the best meeting time across time zones and invite friends with a beautiful digital postcard. Free, simple, and designed for long-distance friendships.",
     type: "website",
@@ -99,7 +99,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Let's Catch Up: Time Zone Scheduler for Friends Worldwide",
+    title: "Group Scheduling for Friends Across Timezones: Let's Catch Up",
     description:
       "Find the best meeting time across time zones and invite friends with a beautiful digital postcard.",
     images: ["/images/og/postcard-invite.jpg"],

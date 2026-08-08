@@ -82,6 +82,9 @@ function AvailabilitySection({
   const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
   const hasFriends = catchUp.participants.length >= 2;
   const hasBestTime = hasFriends && Boolean(bestSlot);
+  // Everyone in the list has already given their availability, so once two or
+  // more people are in and nothing lines up, there genuinely is no overlap.
+  const hasNoOverlap = !isCreating && hasFriends && !bestSlot;
   const creatorAvailability = (
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0]
   )?.availabilityText?.trim();
@@ -90,7 +93,7 @@ function AvailabilitySection({
   const availabilityHeading = (
     <div className="flex items-center justify-between gap-3">
       <p className="postcard-meta postcard-meta--medium">
-        {hasBestTime ? "Best time" : "Availability"}
+        {hasBestTime ? "Best time to call" : "Availability"}
       </p>
       {onViewAvailability && !isCreating && catchUp.participants.length > 0 ? (
         <button
@@ -119,6 +122,9 @@ function AvailabilitySection({
     return (
       <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
+        <p className="postcard-meta leading-relaxed">
+          We found a time that works for everyone.
+        </p>
         <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
           {dateLabel}
         </h3>
@@ -152,6 +158,21 @@ function AvailabilitySection({
     );
   }
 
+  if (hasNoOverlap) {
+    return (
+      <div className="postcard-back-availability space-y-2 text-left">
+        {availabilityHeading}
+        <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
+          No time works for everyone
+        </h3>
+        <p className="postcard-meta leading-relaxed">
+          Unfortunately, we couldn&apos;t find an overlap to meet. Try adjusting
+          your availability.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="postcard-back-availability space-y-2 text-left">
       {availabilityHeading}
@@ -171,8 +192,6 @@ function AvailabilitySection({
             ) : (
               "Add your availability"
             )
-          ) : hasFriends ? (
-            "We're still looking for a time that works for everyone."
           ) : (
             "Your postcard is ready to share. Times will appear once everyone adds their availability."
           )}

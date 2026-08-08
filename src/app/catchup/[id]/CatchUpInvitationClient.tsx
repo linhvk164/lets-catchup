@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { FlippablePostcard } from "@/components/postcard";
 import {
@@ -23,6 +23,7 @@ import {
   consumePostcardCelebrate,
 } from "@/components/ConfettiBurst";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Toast } from "@/components/Toast";
 
 export function CatchUpInvitationClient() {
   const params = useParams<{ id: string }>();
@@ -54,6 +55,7 @@ export function CatchUpInvitationClient() {
     null
   );
   const [editing, setEditing] = useState<Participant | null>(null);
+  const [joinedToastId, setJoinedToastId] = useState(0);
   const recommendationsRef = useRef<HTMLElement>(null);
   const postcardRef = useRef<HTMLDivElement>(null);
 
@@ -167,8 +169,11 @@ export function CatchUpInvitationClient() {
     if (editorMode === "join" && catchUp) {
       markAsInvitee(catchUp.id, newId);
       setViewer({ role: "invitee", participantId: newId });
+      setJoinedToastId((n) => n + 1);
     }
   }
+
+  const dismissJoinedToast = useCallback(() => setJoinedToastId(0), []);
 
   if (loading || (catchUp && !viewer)) {
     return (
@@ -198,6 +203,14 @@ export function CatchUpInvitationClient() {
     <div className="flex min-h-full flex-col">
       <SiteHeader compact />
       {celebrate ? <ConfettiBurst active /> : null}
+      {joinedToastId > 0 ? (
+        <Toast
+          key={joinedToastId}
+          title="You're in!"
+          message="Your availability has been added to the invitation."
+          onDismiss={dismissJoinedToast}
+        />
+      ) : null}
       <main className="mx-auto w-full max-w-[36rem] flex-1 px-5 pb-8 pt-4 sm:px-8 sm:pb-10 sm:pt-5 lg:max-w-4xl">
         <div className="animate-fade-rise text-center">
           <h1 className="font-display text-2xl text-ink sm:text-3xl">
@@ -311,9 +324,11 @@ export function CatchUpInvitationClient() {
         <section ref={recommendationsRef} className="mt-8 scroll-mt-8">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
             <h2 className="font-display text-2xl text-ink">
-              {catchUp.participants.length < 2 || slots.length === 0
+              {catchUp.participants.length < 2
                 ? "Waiting for everyone to add their availability."
-                : "Available times"}
+                : slots.length === 0
+                  ? "No time works for everyone"
+                  : "Available times"}
             </h2>
             <button
               type="button"
@@ -338,9 +353,16 @@ export function CatchUpInvitationClient() {
           ) : slots.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-white p-6 text-center">
               <p className="text-sm text-ink-soft">
-                We couldn&apos;t find a time that works yet. Try updating
-                availability, then check again.
+                Unfortunately, we couldn&apos;t find an overlap to meet. Try
+                adjusting your availability.
               </p>
+              <button
+                type="button"
+                className="mt-3 text-sm font-medium text-ocean underline underline-offset-2 transition hover:text-ocean-deep"
+                onClick={() => setTimelineOpen(true)}
+              >
+                View all schedules
+              </button>
             </div>
           ) : (
             <ul className="mt-4 grid gap-4 lg:grid-cols-2">

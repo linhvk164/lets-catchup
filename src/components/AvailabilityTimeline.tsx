@@ -3,8 +3,58 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/components/ui";
+import { parseAvailabilityInput } from "@/lib/availability";
 import { buildAvailabilityTimeline } from "@/lib/timeline";
 import type { MeetingSlot, Participant } from "@/lib/types";
+
+/**
+ * Everyone's availability in words. The timeline only draws a single day, so
+ * this is what makes a missing overlap explainable and actionable.
+ */
+function AvailabilitySummaryList({
+  participants,
+}: {
+  participants: Participant[];
+}) {
+  const rows = useMemo(
+    () =>
+      participants.map((participant) => {
+        const text = participant.availabilityText?.trim() ?? "";
+        const parsed = text ? parseAvailabilityInput(text) : null;
+        const lines =
+          parsed && parsed.understood && parsed.debugLines.length > 0
+            ? parsed.debugLines
+            : text
+              ? [text]
+              : ["No availability added yet"];
+        return { participant, lines };
+      }),
+    [participants]
+  );
+
+  return (
+    <div className="space-y-2">
+      <p className="text-xs uppercase tracking-[0.14em] text-ink-soft">
+        Everyone&apos;s availability
+      </p>
+      <ul className="space-y-2.5">
+        {rows.map(({ participant, lines }) => (
+          <li key={participant.id}>
+            <p className="text-sm font-medium text-ink">
+              {participant.name}
+              {participant.flagEmoji ? ` ${participant.flagEmoji}` : ""}
+            </p>
+            {lines.map((line) => (
+              <p key={line} className="text-sm leading-relaxed text-ink-soft">
+                {line}
+              </p>
+            ))}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export function AvailabilityTimeline({
   participants,
@@ -174,11 +224,13 @@ export function AvailabilityTimeline({
             </div>
           ) : slots.length === 0 ? (
             <p className="mt-2 text-center text-sm text-ink-soft">
-              No overlapping times yet. Try updating availability.
+              No time works for everyone. Try adjusting your availability.
             </p>
           ) : null}
         </div>
       </div>
+
+      <AvailabilitySummaryList participants={participants} />
 
       {activeSlot && onSelectSlot ? (
         <Button className="w-full" onClick={() => onSelectSlot(activeSlot)}>
@@ -232,7 +284,7 @@ export function AvailabilityTimelineSheet({
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-3xl rounded-t-2xl bg-white p-4 shadow-xl sm:rounded-2xl sm:p-6">
+      <div className="relative z-10 max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:max-h-[85vh] sm:rounded-2xl sm:p-6">
         <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
           <h2 className="font-display text-2xl text-ink">See everyone&apos;s schedule</h2>
           <button
