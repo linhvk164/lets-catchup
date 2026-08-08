@@ -1,29 +1,40 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type {
   ParsedAvailability,
   StructuredAvailability,
   StructuredTimeRange,
-  StructuredWindow,
 } from "@/lib/availability";
 import {
   ANYTIME_END,
   ANYTIME_START,
   serializeStructuredAvailability,
 } from "@/lib/availability";
-import type { DayOfWeek, TimeOfDay } from "@/lib/types";
-import { Button } from "@/components/ui";
+import type { DayOfWeek, ExceptionDate, TimeOfDay } from "@/lib/types";
 
-const DAY_OPTIONS: { id: DayOfWeek; label: string }[] = [
-  { id: "monday", label: "Mon" },
-  { id: "tuesday", label: "Tue" },
-  { id: "wednesday", label: "Wed" },
-  { id: "thursday", label: "Thu" },
-  { id: "friday", label: "Fri" },
-  { id: "saturday", label: "Sat" },
-  { id: "sunday", label: "Sun" },
+const DAY_OPTIONS: { id: DayOfWeek; label: string; initial: string }[] = [
+  { id: "monday", label: "Monday", initial: "M" },
+  { id: "tuesday", label: "Tuesday", initial: "T" },
+  { id: "wednesday", label: "Wednesday", initial: "W" },
+  { id: "thursday", label: "Thursday", initial: "Th" },
+  { id: "friday", label: "Friday", initial: "F" },
+  { id: "saturday", label: "Saturday", initial: "S" },
+  { id: "sunday", label: "Sunday", initial: "S" },
 ];
+
+const DEFAULT_RANGE: StructuredTimeRange = {
+  start: { hour: 9, minute: 0 },
+  end: { hour: 17, minute: 0 },
+};
+
+function cloneRanges(ranges: StructuredTimeRange[]): StructuredTimeRange[] {
+  return ranges.map((tr) => ({
+    start: { ...tr.start },
+    end: { ...tr.end },
+    label: tr.label,
+  }));
+}
 
 function cloneStructured(
   structured: StructuredAvailability
@@ -60,172 +71,362 @@ function inputToTime(value: string): TimeOfDay {
   };
 }
 
-function toggleDay(days: DayOfWeek[], day: DayOfWeek): DayOfWeek[] {
-  return days.includes(day)
-    ? days.filter((d) => d !== day)
-    : DAY_OPTIONS.map((d) => d.id).filter((d) => days.includes(d) || d === day);
-}
-
-function DayToggles({
-  days,
-  onChange,
-  label,
-}: {
-  days: DayOfWeek[];
-  onChange: (days: DayOfWeek[]) => void;
-  label: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <p className="text-xs font-medium text-ink-soft">{label}</p>
-      <div className="flex flex-wrap gap-1.5">
-        {DAY_OPTIONS.map((day) => {
-          const active = days.includes(day.id);
-          return (
-            <button
-              key={day.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(toggleDay(days, day.id))}
-              className={`rounded-lg px-2.5 py-1.5 text-xs font-medium transition ${
-                active
-                  ? "bg-ocean text-paper"
-                  : "border border-ink/10 bg-white text-ink-soft hover:border-ink/20 hover:text-ink"
-              }`}
-            >
-              {day.label}
-            </button>
-          );
-        })}
-      </div>
-    </div>
+function rangeKey(ranges: StructuredTimeRange[]): string {
+  return JSON.stringify(
+    ranges.map((tr) => ({
+      sh: tr.start.hour,
+      sm: tr.start.minute,
+      eh: tr.end.hour,
+      em: tr.end.minute,
+    }))
   );
 }
 
-function TimeRangeEditor({
-  ranges,
-  onChange,
-}: {
-  ranges: StructuredTimeRange[];
-  onChange: (ranges: StructuredTimeRange[]) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <p className="text-xs font-medium text-ink-soft">Times</p>
-      {ranges.length === 0 ? (
-        <p className="text-xs text-ink-soft">No times — available those days.</p>
-      ) : null}
-      {ranges.map((range, index) => (
-        <div key={index} className="flex flex-wrap items-center gap-2">
-          <input
-            type="time"
-            value={timeToInput(range.start)}
-            onChange={(e) => {
-              const next = ranges.map((r, i) =>
-                i === index ? { ...r, start: inputToTime(e.target.value), label: undefined } : r
-              );
-              onChange(next);
-            }}
-            className="rounded-lg border border-ink/10 bg-white px-2 py-1.5 text-sm text-ink"
-          />
-          <span className="text-xs text-ink-soft">to</span>
-          <input
-            type="time"
-            value={timeToInput(range.end)}
-            onChange={(e) => {
-              const next = ranges.map((r, i) =>
-                i === index ? { ...r, end: inputToTime(e.target.value), label: undefined } : r
-              );
-              onChange(next);
-            }}
-            className="rounded-lg border border-ink/10 bg-white px-2 py-1.5 text-sm text-ink"
-          />
-          <button
-            type="button"
-            className="text-xs text-ink-soft hover:text-ink"
-            onClick={() => onChange(ranges.filter((_, i) => i !== index))}
-          >
-            Remove
-          </button>
-        </div>
-      ))}
-      <button
-        type="button"
-        className="text-xs font-medium text-ocean hover:text-ocean-deep"
-        onClick={() =>
-          onChange([
-            ...ranges,
+function toDayRanges(
+  structured: StructuredAvailability
+): Record<DayOfWeek, StructuredTimeRange[]> {
+  const next: Record<DayOfWeek, StructuredTimeRange[]> = {
+    sunday: [],
+    monday: [],
+    tuesday: [],
+    wednesday: [],
+    thursday: [],
+    friday: [],
+    saturday: [],
+  };
+  const excluded = new Set(structured.excludedDays);
+
+  for (const window of structured.windows) {
+    const ranges =
+      window.timeRanges.length > 0
+        ? cloneRanges(window.timeRanges)
+        : [
             {
               start: { ...ANYTIME_START },
-              end: { hour: 22, minute: 0 },
+              end: { ...ANYTIME_END },
+              label: "Anytime",
             },
-          ])
-        }
-      >
-        Add time range
-      </button>
-      {ranges.length === 0 ? (
-        <button
-          type="button"
-          className="ml-3 text-xs font-medium text-ocean hover:text-ocean-deep"
-          onClick={() =>
-            onChange([
-              {
-                start: { ...ANYTIME_START },
-                end: { ...ANYTIME_END },
-                label: "Anytime",
-              },
-            ])
-          }
-        >
-          Set anytime
-        </button>
-      ) : null}
-    </div>
+          ];
+    for (const day of window.days) {
+      if (excluded.has(day)) continue;
+      next[day].push(...cloneRanges(ranges));
+    }
+  }
+
+  return next;
+}
+
+function fromDayRanges(
+  dayRanges: Record<DayOfWeek, StructuredTimeRange[]>,
+  exceptions: ExceptionDate[]
+): StructuredAvailability {
+  const groups = new Map<string, StructuredTimeRange[]>();
+  const daysByKey = new Map<string, DayOfWeek[]>();
+
+  for (const day of DAY_OPTIONS.map((d) => d.id)) {
+    const ranges = dayRanges[day];
+    if (ranges.length === 0) continue;
+    const key = rangeKey(ranges);
+    if (!groups.has(key)) {
+      groups.set(key, cloneRanges(ranges));
+      daysByKey.set(key, []);
+    }
+    daysByKey.get(key)?.push(day);
+  }
+
+  const windows = [...groups.entries()].map(([key, timeRanges]) => ({
+    days: daysByKey.get(key) ?? [],
+    timeRanges,
+  }));
+
+  const days = DAY_OPTIONS.map((d) => d.id).filter(
+    (day) => dayRanges[day].length > 0
+  );
+
+  return {
+    days,
+    timeRanges: windows.flatMap((w) => w.timeRanges),
+    exceptions: [...exceptions],
+    excludedDays: [],
+    windows,
+  };
+}
+
+function IconButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="flex h-7 w-7 items-center justify-center rounded-full text-ink-soft transition hover:bg-ink/5 hover:text-ink"
+    >
+      {children}
+    </button>
   );
 }
 
-function WindowEditor({
-  window,
-  index,
+function PlusIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+      <circle cx="8" cy="8" r="6.25" stroke="currentColor" strokeWidth="1.4" />
+      <path
+        d="M8 5v6M5 8h6"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden>
+      <path
+        d="M3.5 3.5l7 7M10.5 3.5l-7 7"
+        stroke="currentColor"
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden>
+      <rect
+        x="5"
+        y="3.5"
+        width="7"
+        height="8.5"
+        rx="1.2"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+      <path
+        d="M3.5 5.5H3A1.2 1.2 0 0 0 1.8 6.7v6.1A1.2 1.2 0 0 0 3 14h6.1A1.2 1.2 0 0 0 10.3 12.8V12"
+        stroke="currentColor"
+        strokeWidth="1.3"
+      />
+    </svg>
+  );
+}
+
+function TimeField({
+  value,
   onChange,
-  onRemove,
-  canRemove,
 }: {
-  window: StructuredWindow;
-  index: number;
-  onChange: (window: StructuredWindow) => void;
-  onRemove: () => void;
-  canRemove: boolean;
+  value: TimeOfDay;
+  onChange: (next: TimeOfDay) => void;
 }) {
   return (
-    <div className="space-y-3 border-t border-ocean/15 pt-3 first:border-t-0 first:pt-0">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-medium text-ink">
-          {window.timeRanges.length === 0
-            ? "Days"
-            : `Schedule${index > 0 ? ` ${index + 1}` : ""}`}
-        </p>
-        {canRemove ? (
-          <button
-            type="button"
-            className="text-xs text-ink-soft hover:text-ink"
-            onClick={onRemove}
-          >
-            Remove
-          </button>
-        ) : null}
-      </div>
-      <DayToggles
-        label="Available"
-        days={window.days}
-        onChange={(days) => onChange({ ...window, days })}
-      />
-      <TimeRangeEditor
-        ranges={window.timeRanges}
-        onChange={(timeRanges) => onChange({ ...window, timeRanges })}
-      />
-    </div>
+    <input
+      type="time"
+      value={timeToInput(value)}
+      onChange={(e) => onChange(inputToTime(e.target.value))}
+      className="min-w-[6.5rem] rounded-lg border-0 bg-ink/[0.07] px-2.5 py-1.5 text-sm text-ink outline-none ring-ocean/30 focus:ring-2"
+    />
+  );
+}
+
+function WeeklyHoursEditor({
+  dayRanges,
+  onChange,
+}: {
+  dayRanges: Record<DayOfWeek, StructuredTimeRange[]>;
+  onChange: (next: Record<DayOfWeek, StructuredTimeRange[]>) => void;
+}) {
+  const [copyingFrom, setCopyingFrom] = useState<DayOfWeek | null>(null);
+  const [copyTargets, setCopyTargets] = useState<DayOfWeek[]>([]);
+
+  function setDay(day: DayOfWeek, ranges: StructuredTimeRange[]) {
+    onChange({ ...dayRanges, [day]: ranges });
+  }
+
+  function addRange(day: DayOfWeek) {
+    setDay(day, [...dayRanges[day], { ...DEFAULT_RANGE, start: { ...DEFAULT_RANGE.start }, end: { ...DEFAULT_RANGE.end } }]);
+  }
+
+  function updateRange(
+    day: DayOfWeek,
+    index: number,
+    patch: Partial<StructuredTimeRange>
+  ) {
+    setDay(
+      day,
+      dayRanges[day].map((range, i) =>
+        i === index
+          ? {
+              ...range,
+              ...patch,
+              label: undefined,
+            }
+          : range
+      )
+    );
+  }
+
+  function removeRange(day: DayOfWeek, index: number) {
+    setDay(
+      day,
+      dayRanges[day].filter((_, i) => i !== index)
+    );
+  }
+
+  function openCopy(day: DayOfWeek) {
+    if (copyingFrom === day) {
+      setCopyingFrom(null);
+      return;
+    }
+    setCopyingFrom(day);
+    setCopyTargets(
+      DAY_OPTIONS.map((d) => d.id).filter((id) => id !== day)
+    );
+  }
+
+  function applyCopy() {
+    if (!copyingFrom) return;
+    const source = cloneRanges(dayRanges[copyingFrom]);
+    const next = { ...dayRanges };
+    for (const day of copyTargets) next[day] = cloneRanges(source);
+    onChange(next);
+    setCopyingFrom(null);
+  }
+
+  return (
+    <ul className="divide-y divide-ink/10">
+      {DAY_OPTIONS.map((day) => {
+        const ranges = dayRanges[day.id];
+        const available = ranges.length > 0;
+
+        return (
+          <li key={day.id} className="py-2.5 first:pt-0 last:pb-0">
+            <div className="flex items-start gap-2.5">
+              <span
+                className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ocean-deep text-xs font-medium text-paper"
+                aria-hidden
+              >
+                {day.initial}
+              </span>
+              <span className="sr-only">{day.label}</span>
+
+              {!available ? (
+                <div className="flex min-h-8 flex-1 items-center justify-between gap-2">
+                  <p className="text-sm text-ink-soft">Unavailable</p>
+                  <IconButton
+                    label={`Add hours on ${day.label}`}
+                    onClick={() => addRange(day.id)}
+                  >
+                    <PlusIcon />
+                  </IconButton>
+                </div>
+              ) : (
+                <div className="min-w-0 flex-1 space-y-2">
+                  {ranges.map((range, index) => (
+                    <div
+                      key={`${day.id}-${index}`}
+                      className="flex flex-wrap items-center gap-1.5"
+                    >
+                      <TimeField
+                        value={range.start}
+                        onChange={(start) =>
+                          updateRange(day.id, index, { start })
+                        }
+                      />
+                      <span className="text-ink-soft">–</span>
+                      <TimeField
+                        value={range.end}
+                        onChange={(end) => updateRange(day.id, index, { end })}
+                      />
+                      <IconButton
+                        label={`Remove hours on ${day.label}`}
+                        onClick={() => removeRange(day.id, index)}
+                      >
+                        <CloseIcon />
+                      </IconButton>
+                      {index === 0 ? (
+                        <>
+                          <IconButton
+                            label={`Add another range on ${day.label}`}
+                            onClick={() => addRange(day.id)}
+                          >
+                            <PlusIcon />
+                          </IconButton>
+                          <IconButton
+                            label={`Copy ${day.label} hours to other days`}
+                            onClick={() => openCopy(day.id)}
+                          >
+                            <CopyIcon />
+                          </IconButton>
+                        </>
+                      ) : null}
+                    </div>
+                  ))}
+                  {copyingFrom === day.id ? (
+                    <div className="rounded-lg border border-ink/10 bg-white px-2.5 py-2">
+                      <p className="text-xs font-medium text-ink">
+                        Copy to other days
+                      </p>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {DAY_OPTIONS.filter((d) => d.id !== day.id).map((d) => {
+                          const checked = copyTargets.includes(d.id);
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              aria-pressed={checked}
+                              onClick={() =>
+                                setCopyTargets((prev) =>
+                                  checked
+                                    ? prev.filter((id) => id !== d.id)
+                                    : [...prev, d.id]
+                                )
+                              }
+                              className={`rounded-full px-2 py-0.5 text-xs font-medium transition ${
+                                checked
+                                  ? "bg-ocean-deep text-paper"
+                                  : "bg-ink/[0.06] text-ink-soft hover:text-ink"
+                              }`}
+                            >
+                              {d.initial === "Th" ? "Th" : d.initial}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-2 flex gap-2">
+                        <button
+                          type="button"
+                          className="text-xs font-medium text-ocean hover:text-ocean-deep"
+                          onClick={applyCopy}
+                        >
+                          Apply
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-ink-soft hover:text-ink"
+                          onClick={() => setCopyingFrom(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -237,81 +438,50 @@ export function AvailabilityInterpretation({
   onChangeAvailability: (text: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(() => cloneStructured(parsed.structured));
+  const [dayRanges, setDayRanges] = useState(() =>
+    toDayRanges(parsed.structured)
+  );
+  const [exceptions, setExceptions] = useState(() =>
+    parsed.structured.exceptions.map((ex) => ({ ...ex }))
+  );
+
+  const previewStructured = useMemo(
+    () => cloneStructured(parsed.structured),
+    [parsed.structured]
+  );
 
   if (parsed.debugLines.length === 0 && parsed.understood) return null;
 
   if (editing) {
     return (
-      <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5">
+      <div className="rounded-xl border border-ocean/20 bg-ocean/5 px-5 py-5">
         <p className="text-sm font-medium text-ink">Adjust availability</p>
-        <div className="mt-3 space-y-3">
-          {draft.windows.map((window, index) => (
-            <WindowEditor
-              key={index}
-              window={window}
-              index={index}
-              canRemove={draft.windows.length > 1}
-              onChange={(next) => {
-                setDraft((prev) => ({
-                  ...prev,
-                  windows: prev.windows.map((w, i) => (i === index ? next : w)),
-                }));
-              }}
-              onRemove={() => {
-                setDraft((prev) => ({
-                  ...prev,
-                  windows: prev.windows.filter((_, i) => i !== index),
-                }));
-              }}
-            />
-          ))}
+        <p className="mt-0.5 text-xs text-ink-soft">
+          Set when you are typically available
+        </p>
+        <div className="mt-4">
+          <WeeklyHoursEditor dayRanges={dayRanges} onChange={setDayRanges} />
 
-          <button
-            type="button"
-            className="text-xs font-medium text-ocean hover:text-ocean-deep"
-            onClick={() =>
-              setDraft((prev) => ({
-                ...prev,
-                windows: [
-                  ...prev.windows,
-                  { days: ["monday", "tuesday", "wednesday", "thursday", "friday"], timeRanges: [] },
-                ],
-              }))
-            }
-          >
-            Add days
-          </button>
-
-          <DayToggles
-            label="Not available"
-            days={draft.excludedDays}
-            onChange={(excludedDays) =>
-              setDraft((prev) => ({ ...prev, excludedDays }))
-            }
-          />
-
-          {draft.exceptions.length > 0 ? (
-            <div className="space-y-1.5">
+          {exceptions.length > 0 ? (
+            <div className="mt-3 space-y-1.5 border-t border-ocean/15 pt-3">
               <p className="text-xs font-medium text-ink-soft">Date notes</p>
               <ul className="space-y-1">
-                {draft.exceptions.map((ex, index) => (
+                {exceptions.map((ex, index) => (
                   <li
                     key={`${ex.date}-${index}`}
                     className="flex items-center justify-between gap-2 text-sm text-ink"
                   >
                     <span>
-                      {ex.type === "unavailable" ? "Not available" : "Available"}:{" "}
-                      {ex.label}
+                      {ex.type === "unavailable" ? "Not available" : "Available"}
+                      : {ex.label}
                     </span>
                     <button
                       type="button"
                       className="text-xs text-ink-soft hover:text-ink"
                       onClick={() =>
-                        setDraft((prev) => ({
-                          ...prev,
-                          exceptions: prev.exceptions.filter((_, i) => i !== index),
-                        }))
+                        setExceptions((prev) =>
+                          prev.filter((_, i) => i !== index)
+                        )
                       }
                     >
                       Remove
@@ -323,29 +493,31 @@ export function AvailabilityInterpretation({
           ) : null}
         </div>
 
-        <div className="mt-4 flex gap-2">
-          <Button
+        <div className="mt-5 flex justify-end gap-2">
+          <button
             type="button"
-            className="flex-1 py-2"
+            className="rounded-lg border border-ink/10 bg-white/70 px-3.5 py-2 text-sm text-ink-soft transition hover:bg-white hover:text-ink"
             onClick={() => {
-              const text = serializeStructuredAvailability(draft);
+              setDayRanges(toDayRanges(previewStructured));
+              setExceptions(previewStructured.exceptions.map((ex) => ({ ...ex })));
+              setEditing(false);
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="rounded-lg bg-ocean px-3.5 py-2 text-sm font-medium text-paper transition hover:bg-ocean-deep"
+            onClick={() => {
+              const text = serializeStructuredAvailability(
+                fromDayRanges(dayRanges, exceptions)
+              );
               onChangeAvailability(text);
               setEditing(false);
             }}
           >
             Done
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            className="flex-1 py-2"
-            onClick={() => {
-              setDraft(cloneStructured(parsed.structured));
-              setEditing(false);
-            }}
-          >
-            Cancel
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -355,14 +527,18 @@ export function AvailabilityInterpretation({
     <button
       type="button"
       onClick={() => {
-        setDraft(cloneStructured(parsed.structured));
+        setDayRanges(toDayRanges(parsed.structured));
+        setExceptions(parsed.structured.exceptions.map((ex) => ({ ...ex })));
         setEditing(true);
       }}
-      className="w-full rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5 text-left transition hover:border-ocean/35 hover:bg-ocean/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean/30"
+      className="relative w-full rounded-xl border border-ocean/20 bg-ocean/5 px-3 py-2.5 pr-20 text-left transition hover:border-ocean/35 hover:bg-ocean/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ocean/30"
       aria-label={
         parsed.understood ? "Adjust availability" : "Add availability manually"
       }
     >
+      <span className="absolute right-2.5 top-2.5 text-xs text-ink">
+        Click to edit
+      </span>
       {parsed.understood ? (
         <>
           <p className="text-sm font-medium text-ink">{parsed.summary}</p>
