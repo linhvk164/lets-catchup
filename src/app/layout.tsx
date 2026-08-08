@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import {
   Birthstone_Bounce,
   Fraunces,
@@ -133,6 +134,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="en" className={`${fontVariables} h-full`}>
       <body className="min-h-full antialiased">
         <SiteShell>{children}</SiteShell>
+        <Analytics />
       </body>
     </html>
   );
