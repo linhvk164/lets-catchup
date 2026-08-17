@@ -41,9 +41,73 @@ export function getCatchUpViewer(id: string): CatchUpViewer | null {
   }
 }
 
+function isQuotaExceeded(err: unknown): boolean {
+  if (!(err instanceof DOMException)) return false;
+  return (
+    err.name === "QuotaExceededError" ||
+    err.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
+    err.code === 22
+  );
+}
+
+function isCatchUpRecordKey(key: string): boolean {
+  return key.startsWith(STORAGE_PREFIX) && !key.startsWith(VIEWER_PREFIX);
+}
+
+/** Drop other cached invites, largest first, to free localStorage space. */
+function pruneCatchUpCache(keepId?: string): void {
+  const keepKey = keepId ? storageKey(keepId) : null;
+  const entries: { key: string; size: number }[] = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key || !isCatchUpRecordKey(key) || key === keepKey) continue;
+    entries.push({ key, size: localStorage.getItem(key)?.length ?? 0 });
+  }
+  entries.sort((a, b) => b.size - a.size);
+  for (const { key } of entries) {
+    localStorage.removeItem(key);
+  }
+}
+
+function withoutLocalPhoto(catchUp: CatchUp): CatchUp {
+  if (!catchUp.photo?.dataUrl) return catchUp;
+  return {
+    ...catchUp,
+    photo: {
+      src: catchUp.photo.src,
+      caption: catchUp.photo.caption,
+      credit: catchUp.photo.credit,
+    },
+  };
+}
+
+function writeLocal(key: string, value: string, keepId?: string): boolean {
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    if (!isQuotaExceeded(err)) throw err;
+  }
+  pruneCatchUpCache(keepId);
+  try {
+    localStorage.setItem(key, value);
+    return true;
+  } catch (err) {
+    if (!isQuotaExceeded(err)) throw err;
+    return false;
+  }
+}
+
 export function setCatchUpViewer(id: string, viewer: CatchUpViewer): void {
   if (typeof window === "undefined") return;
-  localStorage.setItem(viewerKey(id), JSON.stringify(viewer));
+  writeLocal(viewerKey(id), JSON.stringify(viewer), id);
+}
+
+export function saveCatchUp(catchUp: CatchUp): void {
+  if (typeof window === "undefined") return;
+  const key = storageKey(catchUp.id);
+  if (writeLocal(key, JSON.stringify(catchUp), catchUp.id)) return;
+  writeLocal(key, JSON.stringify(withoutLocalPhoto(catchUp)), catchUp.id);
 }
 
 /** Mark this browser as the invitation creator. */
@@ -54,11 +118,6 @@ export function markAsCreator(id: string, participantId: string): void {
 /** Mark this browser as an invitee (optionally after joining). */
 export function markAsInvitee(id: string, participantId?: string): void {
   setCatchUpViewer(id, { role: "invitee", participantId });
-}
-
-export function saveCatchUp(catchUp: CatchUp): void {
-  if (typeof window === "undefined") return;
-  localStorage.setItem(storageKey(catchUp.id), JSON.stringify(catchUp));
 }
 
 export function loadCatchUp(id: string): CatchUp | null {

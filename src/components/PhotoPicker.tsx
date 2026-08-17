@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import { fileToPostcardDataUrl } from "@/lib/compress-image";
 import { DEFAULT_POSTCARD_PHOTOS } from "@/lib/photos";
 import type { PostcardPhoto } from "@/lib/types";
 
@@ -20,17 +21,19 @@ export function PhotoPicker({
 }) {
   function onUpload(file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = String(reader.result ?? "");
-      onChange({
-        src: value.src,
-        caption: value.caption || "Our moment",
-        credit: "Your photo",
-        dataUrl,
-      });
-    };
-    reader.readAsDataURL(file);
+    void (async () => {
+      try {
+        const dataUrl = await fileToPostcardDataUrl(file);
+        onChange({
+          src: value.src,
+          caption: value.caption || "Our moment",
+          credit: "Your photo",
+          dataUrl,
+        });
+      } catch {
+        /* ignore unreadable files */
+      }
+    })();
   }
 
   const selected = value.dataUrl
