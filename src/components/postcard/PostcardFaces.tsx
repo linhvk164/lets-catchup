@@ -192,6 +192,9 @@ function AvailabilitySection({
                 <span className="postcard-meta--medium min-w-0 truncate">
                   {place.cityLabel}
                   {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+                  {place.available === false ? (
+                    <span className="font-light text-ink-soft"> (proposed)</span>
+                  ) : null}
                 </span>
                 <span className="shrink-0">{place.timeLabel}</span>
               </div>

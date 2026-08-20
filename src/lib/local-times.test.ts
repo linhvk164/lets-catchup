@@ -43,6 +43,18 @@ test("uniqueLocalTimesByCity does not merge different cities in the same timezon
   );
 });
 
+test("uniqueLocalTimesByCity marks city unavailable if anyone there cannot join", () => {
+  const rows = uniqueLocalTimesByCity([
+    { ...place("Toronto", 12, "mary"), available: true },
+    { ...place("Toronto", 12, "jenny"), available: false },
+    { ...place("Berlin", 18, "anna", "Europe/Berlin"), available: true },
+  ]);
+  const toronto = rows.find((r) => r.cityLabel === "Toronto");
+  const berlin = rows.find((r) => r.cityLabel === "Berlin");
+  assert.equal(toronto?.available, false);
+  assert.equal(berlin?.available, true);
+});
+
 test("groupParticipantsByCity nests people under one city label", () => {
   const groups = groupParticipantsByCity([
     {

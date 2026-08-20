@@ -9,6 +9,8 @@ function cityKey(cityLabel: string): string {
  * Keeps participant data intact; only collapses presentation duplicates.
  * Same city name merges even if multiple people share it. Different cities
  * stay separate even when they share a timezone.
+ * If anyone in a city is unavailable for the proposed slot, the row is marked
+ * available: false so the UI can show a (proposed) tag.
  */
 export function uniqueLocalTimesByCity(
   localTimes: LocalTimeDisplay[]
@@ -21,8 +23,15 @@ export function uniqueLocalTimesByCity(
 
   for (const place of sorted) {
     const key = cityKey(place.cityLabel);
-    if (!key || byCity.has(key)) continue;
-    byCity.set(key, place);
+    if (!key) continue;
+    const existing = byCity.get(key);
+    if (!existing) {
+      byCity.set(key, { ...place });
+      continue;
+    }
+    if (place.available === false) {
+      existing.available = false;
+    }
   }
 
   return [...byCity.values()];

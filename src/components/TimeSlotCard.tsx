@@ -69,6 +69,9 @@ export function TimeSlotCard({
             <span className="min-w-0 truncate font-medium text-ink">
               {place.cityLabel}
               {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+              {place.available === false ? (
+                <span className="font-light text-ink-soft"> (proposed)</span>
+              ) : null}
             </span>
             <span className="shrink-0 text-ink-soft">{place.timeLabel}</span>
           </li>
