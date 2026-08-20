@@ -9,6 +9,11 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import {
+  messageFontFamily,
+  messageFontSizePx,
+  type MessageFontId,
+} from "@/lib/message-fonts";
 
 /** Empty postage stamp placeholder (top-right of postcard back). */
 export function StampArea({ label = "Stamp" }: { label?: string }) {
@@ -99,7 +104,7 @@ export function RecipientList({
   );
 }
 
-const MESSAGE_MAX_FONT_DESKTOP_PX = 32; // landing / create desktop default
+const MESSAGE_MAX_FONT_DESKTOP_PX = 25; // ~22% under prior 32px; keeps title dominant
 const MESSAGE_MAX_FONT_TABLET_PX = 22; // sm–lg
 const MESSAGE_MAX_FONT_MOBILE_PX = 17; // < sm
 const MESSAGE_MIN_FONT_PX = 11;
@@ -179,39 +184,49 @@ export function MessageArea({
   value,
   editable = false,
   onChange,
+  fontId,
   fontFamily,
 }: {
   value: string;
   editable?: boolean;
   onChange?: (value: string) => void;
+  /** Selected handwriting face. Drives family + perceived-size scale. */
+  fontId?: MessageFontId | string | null;
+  /** @deprecated Prefer `fontId`. Kept for callers that only pass a CSS family. */
   fontFamily?: string;
 }) {
   const shellRef = useRef<HTMLDivElement>(null);
   const textRef = useRef<HTMLDivElement | null>(null);
   const areaRef = useRef<HTMLTextAreaElement | null>(null);
   const [focused, setFocused] = useState(false);
-  const [fontSize, setFontSize] = useState(MESSAGE_MAX_FONT_MOBILE_PX);
+  const [fontSize, setFontSize] = useState(() =>
+    messageFontSizePx(MESSAGE_MAX_FONT_MOBILE_PX, fontId)
+  );
+
+  const resolvedFamily = fontFamily || messageFontFamily(fontId);
 
   const fit = useCallback(() => {
     const shell = shellRef.current;
     const el = editable ? areaRef.current : textRef.current;
     if (!shell || !el) return;
 
-    const maxFont = maxFontForViewport();
+    const baseMax = maxFontForViewport();
+    // Calibrate CSS px per face so x-heights look similar; shell height follows.
+    const maxFont = messageFontSizePx(baseMax, fontId, MESSAGE_MIN_FONT_PX);
+    const minFont = messageFontSizePx(
+      MESSAGE_MIN_FONT_PX,
+      fontId,
+      Math.max(8, MESSAGE_MIN_FONT_PX * 0.75)
+    );
     const maxHeight = twoLineMaxHeight(maxFont);
     shell.style.maxHeight = `${maxHeight}px`;
-    const next = fitFontSize(
-      el,
-      maxHeight,
-      maxFont,
-      MESSAGE_MIN_FONT_PX
-    );
+    const next = fitFontSize(el, maxHeight, maxFont, minFont);
     setFontSize(next);
-  }, [editable]);
+  }, [editable, fontId]);
 
   useLayoutEffect(() => {
     fit();
-  }, [value, fontFamily, focused, fit]);
+  }, [value, resolvedFamily, fontId, focused, fit]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -236,7 +251,7 @@ export function MessageArea({
   }, [fit]);
 
   const handStyle: CSSProperties = {
-    fontFamily: fontFamily || undefined,
+    fontFamily: resolvedFamily || undefined,
     fontSize: `${fontSize}px`,
     lineHeight: MESSAGE_LINE_HEIGHT,
     whiteSpace: "pre-wrap",

@@ -12,6 +12,7 @@ import { Button, Field, FieldActionButton, TextArea } from "@/components/ui";
 import {
   getMessageFont,
   messageFontFamily,
+  messageFontSizePx,
   nextMessageFontId,
   type MessageFontId,
 } from "@/lib/message-fonts";
@@ -136,7 +137,10 @@ export function MobileCreateStudio({
   const formScrollRef = useRef<HTMLDivElement>(null);
 
   const liveFontStyle = useMemo(
-    () => ({ fontFamily: messageFontFamily(fields.messageFont) }),
+    () => ({
+      fontFamily: messageFontFamily(fields.messageFont),
+      fontSize: `${messageFontSizePx(16, fields.messageFont)}px`,
+    }),
     [fields.messageFont]
   );
 

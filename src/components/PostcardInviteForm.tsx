@@ -9,6 +9,7 @@ import { parseAvailabilityInput } from "@/lib/availability";
 import {
   getMessageFont,
   messageFontFamily,
+  messageFontSizePx,
   nextMessageFontId,
   resolveMessageFontId,
   type MessageFontId,
@@ -307,7 +308,10 @@ export function usePostcardInviteForm({
         }
         rows={1}
         className="!min-h-0 resize-none py-3"
-        style={{ fontFamily: messageFontFamily(messageFont) }}
+        style={{
+          fontFamily: messageFontFamily(messageFont),
+          fontSize: `${messageFontSizePx(16, messageFont)}px`,
+        }}
         labelAction={
           <FieldActionButton
             title={`Font: ${getMessageFont(messageFont).label}. Click to switch.`}

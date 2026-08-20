@@ -1,17 +1,45 @@
 export const MESSAGE_FONTS = [
-  { id: "schoolbell", label: "Schoolbell", cssVar: "--font-schoolbell" },
-  { id: "sedgwick-ave", label: "Sedgwick Ave", cssVar: "--font-sedgwick-ave" },
+  {
+    id: "schoolbell",
+    label: "Schoolbell",
+    cssVar: "--font-schoolbell",
+    /** Reference handwriting face. Other scales are relative to this. */
+    sizeScale: 1,
+  },
+  {
+    id: "sedgwick-ave",
+    label: "Sedgwick Ave",
+    cssVar: "--font-sedgwick-ave",
+    // Bold graffiti caps read larger at the same CSS size.
+    sizeScale: 0.86,
+  },
   {
     id: "birthstone-bounce",
     label: "Birthstone Bounce",
     cssVar: "--font-birthstone-bounce",
+    // Tall flourishes and caps dominate unless scaled down.
+    sizeScale: 0.74,
   },
-  { id: "gaegu", label: "Gaegu", cssVar: "--font-gaegu" },
-  { id: "gamja-flower", label: "Gamja Flower", cssVar: "--font-gamja-flower" },
+  {
+    id: "gaegu",
+    label: "Gaegu",
+    cssVar: "--font-gaegu",
+    // Slightly open round forms; nearly matches Schoolbell.
+    sizeScale: 0.96,
+  },
+  {
+    id: "gamja-flower",
+    label: "Gamja Flower",
+    cssVar: "--font-gamja-flower",
+    // Small x-height and light strokes look undersized without a bump.
+    sizeScale: 1.15,
+  },
   {
     id: "homemade-apple",
     label: "Homemade Apple",
     cssVar: "--font-homemade-apple",
+    // Chunky script with tall capitals; pull back a bit.
+    sizeScale: 0.84,
   },
 ] as const;
 
@@ -44,4 +72,21 @@ export function nextMessageFontId(current?: string | null): MessageFontId {
 export function messageFontFamily(id?: string | null): string {
   const font = getMessageFont(id);
   return `var(${font.cssVar}), "Segoe Print", cursive`;
+}
+
+/** Font-specific scale so faces share a similar perceived size. */
+export function messageFontSizeScale(id?: string | null): number {
+  return getMessageFont(id).sizeScale;
+}
+
+/**
+ * Apply a font's sizeScale to a base (viewport) pixel size.
+ * Keeps a readable floor so tiny viewports stay usable.
+ */
+export function messageFontSizePx(
+  basePx: number,
+  id?: string | null,
+  minPx = 10
+): number {
+  return Math.max(minPx, Math.round(basePx * messageFontSizeScale(id) * 10) / 10);
 }

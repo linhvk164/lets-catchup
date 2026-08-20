@@ -9,7 +9,7 @@ import type {
   PostcardPhoto,
 } from "@/lib/types";
 import { resolvePhotoSrc } from "@/lib/photos";
-import { messageFontFamily } from "@/lib/message-fonts";
+import { uniqueLocalTimesByCity } from "@/lib/local-times";
 import {
   ENTER_DETAILS_HINT,
   resolvePostcardMessage,
@@ -115,9 +115,7 @@ function AvailabilitySection({
     const dateLabel = DateTime.fromISO(bestSlot.startUtc, { zone: "utc" })
       .setZone(first?.timezone ?? "UTC")
       .toFormat("cccc, LLLL d");
-    const places = [...bestSlot.localTimes].sort(
-      (a, b) => a.hour - b.hour || a.cityLabel.localeCompare(b.cityLabel)
-    );
+    const places = uniqueLocalTimesByCity(bestSlot.localTimes);
 
     return (
       <div className="postcard-back-availability space-y-2 text-left">
@@ -131,7 +129,7 @@ function AvailabilitySection({
         <ul className="space-y-1.5">
           {places.map((place) => (
             <li
-              key={`${place.participantId}-${place.hour}-${place.cityLabel}`}
+              key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}
               className="postcard-meta flex min-w-0 items-baseline justify-between gap-2"
             >
               <span className="postcard-meta--medium min-w-0 truncate">
@@ -417,7 +415,7 @@ export function PostcardBackContent({
               value={message}
               editable={Boolean(onUpdateMessage)}
               onChange={onUpdateMessage}
-              fontFamily={messageFontFamily(catchUp.messageFont)}
+              fontId={catchUp.messageFont}
             />
           </div>
         ) : showDetailsHint ? (
@@ -432,7 +430,7 @@ export function PostcardBackContent({
               value=""
               editable
               onChange={onUpdateMessage}
-              fontFamily={messageFontFamily(catchUp.messageFont)}
+              fontId={catchUp.messageFont}
             />
           </div>
         ) : null}

@@ -2,6 +2,7 @@
 
 import { DateTime } from "luxon";
 import { Button } from "@/components/ui";
+import { uniqueLocalTimesByCity } from "@/lib/local-times";
 import type { MeetingSlot } from "@/lib/types";
 
 export function TimeSlotCard({
@@ -19,6 +20,8 @@ export function TimeSlotCard({
   const dateLabel = DateTime.fromISO(slot.startUtc, { zone: "utc" })
     .setZone(first?.timezone ?? "UTC")
     .toFormat("cccc, LLLL d");
+
+  const places = uniqueLocalTimesByCity(slot.localTimes);
 
   return (
     <div
@@ -38,46 +41,18 @@ export function TimeSlotCard({
       </div>
 
       <ul className="mt-4 space-y-2 border-t border-ink/8 pt-4">
-        {[...slot.localTimes]
-          .sort((a, b) => a.hour - b.hour || a.cityLabel.localeCompare(b.cityLabel))
-          .reduce<
-            {
-              timeLabel: string;
-              hour: number;
-              places: typeof slot.localTimes;
-            }[]
-          >((groups, lt) => {
-            const last = groups[groups.length - 1];
-            if (last && last.timeLabel === lt.timeLabel && last.hour === lt.hour) {
-              last.places.push(lt);
-            } else {
-              groups.push({
-                timeLabel: lt.timeLabel,
-                hour: lt.hour,
-                places: [lt],
-              });
-            }
-            return groups;
-          }, [])
-          .map((group) => (
-            <li
-              key={`${group.hour}-${group.timeLabel}`}
-              className="space-y-1 text-sm leading-snug"
-            >
-              {group.places.map((p) => (
-                <div
-                  key={`${p.participantId}-${p.cityLabel}`}
-                  className="flex min-w-0 items-baseline justify-between gap-2"
-                >
-                  <span className="min-w-0 truncate font-medium text-ink">
-                    {p.cityLabel}
-                    {p.flagEmoji ? ` ${p.flagEmoji}` : ""}
-                  </span>
-                  <span className="shrink-0 text-ink-soft">{group.timeLabel}</span>
-                </div>
-              ))}
-            </li>
-          ))}
+        {places.map((place) => (
+          <li
+            key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}
+            className="flex min-w-0 items-baseline justify-between gap-2 text-sm leading-snug"
+          >
+            <span className="min-w-0 truncate font-medium text-ink">
+              {place.cityLabel}
+              {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+            </span>
+            <span className="shrink-0 text-ink-soft">{place.timeLabel}</span>
+          </li>
+        ))}
       </ul>
 
       {onSelect ? (
