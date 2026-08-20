@@ -362,7 +362,7 @@ export function AvailabilityScheduler({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-ink/10 bg-white shadow-[0_12px_32px_rgba(31,79,92,0.06)]">
-      <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.9fr)] lg:items-stretch">
+      <div className="flex flex-col lg:grid lg:grid-cols-[minmax(0,1.6fr)_minmax(18rem,0.9fr)] lg:items-start">
         <div className="min-w-0 border-b border-ink/10 p-4 sm:p-5 lg:border-b-0 lg:border-r">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex min-w-0 flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
@@ -413,28 +413,26 @@ export function AvailabilityScheduler({
           </div>
         </div>
 
-        <div className="relative bg-paper/40 lg:min-h-0">
-          <div className="flex flex-col justify-start p-4 sm:p-5 lg:absolute lg:inset-0 lg:overflow-y-auto">
-            <TimeSlotCard
-              slot={focusedSlot}
-              featured={focusedSlot.id === bestSlotId}
-              selected={selectedSlotId === focusedSlot.id}
-              onSelect={() => {
-                setFocusedSlotId(focusedSlot.id);
-                onSelectSlot(focusedSlot);
-                const idx = weeks.findIndex((w) =>
-                  slotsInWeek(slots, w, timezone).some(
-                    (s) => s.id === focusedSlot.id
-                  )
-                );
-                if (idx >= 0) setWeekIndex(idx);
-              }}
-              cardRef={(node) => {
-                if (node) cardRefs.current.set(focusedSlot.id, node);
-                else cardRefs.current.delete(focusedSlot.id);
-              }}
-            />
-          </div>
+        <div className="bg-paper/40 p-4 sm:p-5">
+          <TimeSlotCard
+            slot={focusedSlot}
+            featured={focusedSlot.id === bestSlotId}
+            selected={selectedSlotId === focusedSlot.id}
+            onSelect={() => {
+              setFocusedSlotId(focusedSlot.id);
+              onSelectSlot(focusedSlot);
+              const idx = weeks.findIndex((w) =>
+                slotsInWeek(slots, w, timezone).some(
+                  (s) => s.id === focusedSlot.id
+                )
+              );
+              if (idx >= 0) setWeekIndex(idx);
+            }}
+            cardRef={(node) => {
+              if (node) cardRefs.current.set(focusedSlot.id, node);
+              else cardRefs.current.delete(focusedSlot.id);
+            }}
+          />
         </div>
       </div>
     </div>
