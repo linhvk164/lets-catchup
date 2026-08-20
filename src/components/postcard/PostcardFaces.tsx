@@ -14,10 +14,6 @@ import {
   uniqueLocalTimesByCity,
 } from "@/lib/local-times";
 import { formatAvailableCountPrompt } from "@/lib/meeting-copy";
-import {
-  contrastingTagTextColor,
-  resolveParticipantTagColor,
-} from "@/lib/participant-tag";
 import { isPerfectOverlap } from "@/lib/scheduler";
 import {
   ENTER_DETAILS_HINT,
@@ -75,25 +71,21 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
   );
 }
 
-function ParticipantTag({
+function ParticipantName({
   participant,
   onEdit,
   available,
 }: {
   participant: Participant;
   onEdit?: (participant: Participant) => void;
-  /** When set, shows ✓ or ✕ for whether this time works for them. */
+  /** When set, shows ✓ or × for whether this time works for them. */
   available?: boolean;
 }) {
-  const bg = resolveParticipantTagColor(participant);
-  const color = contrastingTagTextColor(bg);
-  const className =
-    "inline-flex max-w-[8.5rem] items-center gap-1 truncate rounded-md px-2.5 py-1 text-[0.875rem] font-medium leading-tight shadow-[0_1px_2px_rgba(30,51,64,0.14)]";
   const mark =
     available === undefined ? null : available ? (
-      <span aria-hidden>✓</span>
+      <span aria-hidden> ✓</span>
     ) : (
-      <span aria-hidden>×</span>
+      <span aria-hidden> ×</span>
     );
   const availabilityLabel =
     available === undefined
@@ -101,13 +93,22 @@ function ParticipantTag({
       : available
         ? `${participant.name} is available`
         : `${participant.name} is not available`;
+  // One inline text run so underline is a single continuous line under name + mark.
+  // Match TimeSlotCard secondary copy (time / unavailable lines).
+  const content = (
+    <>
+      {participant.name}
+      {mark}
+    </>
+  );
+  const className =
+    "inline text-sm leading-snug text-ink-soft underline underline-offset-2";
 
   if (onEdit) {
     return (
       <button
         type="button"
-        className={`${className} underline underline-offset-2 transition hover:brightness-95 active:scale-[0.98]`}
-        style={{ backgroundColor: bg, color }}
+        className={`${className} transition hover:text-ocean-deep`}
         title={availabilityLabel ?? `Edit ${participant.name}`}
         aria-label={
           availabilityLabel
@@ -119,8 +120,7 @@ function ParticipantTag({
           onEdit(participant);
         }}
       >
-        <span className="truncate">{participant.name}</span>
-        {mark}
+        {content}
       </button>
     );
   }
@@ -128,12 +128,10 @@ function ParticipantTag({
   return (
     <span
       className={className}
-      style={{ backgroundColor: bg, color }}
       title={availabilityLabel ?? participant.name}
       aria-label={availabilityLabel}
     >
-      <span className="truncate">{participant.name}</span>
-      {mark}
+      {content}
     </span>
   );
 }
@@ -271,7 +269,7 @@ function AvailabilitySection({
         >
           {recommendationMessage}
         </p>
-        <ul className="space-y-3">
+        <ul className="mt-3 space-y-3 sm:mt-4">
           {places.map((place) => {
             const cityKey = place.cityLabel.trim().toLowerCase();
             const people = peopleByCity.get(cityKey) ?? [];
@@ -285,14 +283,22 @@ function AvailabilitySection({
                   <span className="shrink-0">{place.timeLabel}</span>
                 </div>
                 {people.length > 0 ? (
-                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
-                    {people.map((person) => {
+                  <ul className="mt-1 flex flex-wrap items-baseline gap-y-0.5">
+                    {people.map((person, index) => {
                       const canEdit =
                         onEditParticipant &&
                         (!canEditParticipant || canEditParticipant(person));
                       return (
-                        <li key={person.id}>
-                          <ParticipantTag
+                        <li key={person.id} className="min-w-0">
+                          {index > 0 ? (
+                            <span
+                              className="text-sm leading-snug text-ink-soft"
+                              aria-hidden
+                            >
+                              ,{" "}
+                            </span>
+                          ) : null}
+                          <ParticipantName
                             participant={person}
                             available={availableById.get(person.id)}
                             onEdit={canEdit ? onEditParticipant : undefined}
