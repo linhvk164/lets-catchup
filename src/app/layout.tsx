@@ -9,6 +9,7 @@ import {
   Outfit,
   Schoolbell,
   Sedgwick_Ave,
+  Syne_Mono,
 } from "next/font/google";
 import { SiteShell } from "@/components/SiteShell";
 import "./globals.css";
@@ -21,6 +22,13 @@ const fraunces = Fraunces({
 
 const outfit = Outfit({
   variable: "--font-outfit",
+  subsets: ["latin"],
+  display: "swap",
+});
+
+const syneMono = Syne_Mono({
+  variable: "--font-syne-mono",
+  weight: "400",
   subsets: ["latin"],
   display: "swap",
 });
@@ -121,6 +129,7 @@ export const viewport: Viewport = {
 const fontVariables = [
   fraunces.variable,
   outfit.variable,
+  syneMono.variable,
   schoolbell.variable,
   sedgwickAve.variable,
   birthstoneBounce.variable,

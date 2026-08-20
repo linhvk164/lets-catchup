@@ -224,7 +224,7 @@ export function AvailabilityTimeline({
             </div>
           ) : slots.length === 0 ? (
             <p className="mt-2 text-center text-sm text-ink-soft">
-              No time works for everyone. Try adjusting your availability.
+              No good compromise yet. Try adjusting your availability.
             </p>
           ) : null}
         </div>

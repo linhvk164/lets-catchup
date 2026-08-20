@@ -13,10 +13,12 @@ import {
   groupParticipantsByCity,
   uniqueLocalTimesByCity,
 } from "@/lib/local-times";
+import { formatAvailableCountPrompt } from "@/lib/meeting-copy";
 import {
   contrastingTagTextColor,
   resolveParticipantTagColor,
 } from "@/lib/participant-tag";
+import { isPerfectOverlap } from "@/lib/scheduler";
 import {
   ENTER_DETAILS_HINT,
   resolvePostcardMessage,
@@ -76,14 +78,29 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
 function ParticipantTag({
   participant,
   onEdit,
+  available,
 }: {
   participant: Participant;
   onEdit?: (participant: Participant) => void;
+  /** When set, shows ✓ or ✕ for whether this time works for them. */
+  available?: boolean;
 }) {
   const bg = resolveParticipantTagColor(participant);
   const color = contrastingTagTextColor(bg);
   const className =
-    "inline-block max-w-[7.5rem] truncate rounded-md px-2.5 py-1 text-[0.875rem] font-medium leading-tight shadow-[0_1px_2px_rgba(30,51,64,0.14)]";
+    "inline-flex max-w-[8.5rem] items-center gap-1 truncate rounded-md px-2.5 py-1 text-[0.875rem] font-medium leading-tight shadow-[0_1px_2px_rgba(30,51,64,0.14)]";
+  const mark =
+    available === undefined ? null : available ? (
+      <span aria-hidden>✓</span>
+    ) : (
+      <span aria-hidden>×</span>
+    );
+  const availabilityLabel =
+    available === undefined
+      ? undefined
+      : available
+        ? `${participant.name} is available`
+        : `${participant.name} is not available`;
 
   if (onEdit) {
     return (
@@ -91,14 +108,19 @@ function ParticipantTag({
         type="button"
         className={`${className} underline underline-offset-2 transition hover:brightness-95 active:scale-[0.98]`}
         style={{ backgroundColor: bg, color }}
-        title={`Edit ${participant.name}`}
-        aria-label={`Edit ${participant.name}`}
+        title={availabilityLabel ?? `Edit ${participant.name}`}
+        aria-label={
+          availabilityLabel
+            ? `Edit ${participant.name}. ${availabilityLabel}`
+            : `Edit ${participant.name}`
+        }
         onClick={(e) => {
           e.stopPropagation();
           onEdit(participant);
         }}
       >
-        {participant.name}
+        <span className="truncate">{participant.name}</span>
+        {mark}
       </button>
     );
   }
@@ -107,9 +129,11 @@ function ParticipantTag({
     <span
       className={className}
       style={{ backgroundColor: bg, color }}
-      title={participant.name}
+      title={availabilityLabel ?? participant.name}
+      aria-label={availabilityLabel}
     >
-      {participant.name}
+      <span className="truncate">{participant.name}</span>
+      {mark}
     </span>
   );
 }
@@ -173,8 +197,7 @@ function AvailabilitySection({
   const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
   const hasFriends = catchUp.participants.length >= 2;
   const hasBestTime = hasFriends && Boolean(bestSlot);
-  // Everyone in the list has already given their availability, so once two or
-  // more people are in and nothing lines up, there genuinely is no overlap.
+  // No reasonable compromise from the scheduler (≥50% at reasonable hours).
   const hasNoOverlap = !isCreating && hasFriends && !bestSlot;
   const creatorAvailability = (
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0]
@@ -183,8 +206,18 @@ function AvailabilitySection({
 
   const availabilityHeading = (
     <div className="flex items-center justify-between gap-3">
-      <p className="postcard-meta postcard-meta--medium">
-        {hasBestTime ? "Best time to call" : "Availability"}
+      <p
+        className={
+          hasBestTime && bestSlot
+            ? "text-xs uppercase tracking-[0.16em] text-ocean"
+            : "postcard-meta postcard-meta--medium"
+        }
+      >
+        {hasBestTime && bestSlot
+          ? isPerfectOverlap(bestSlot)
+            ? "Best time"
+            : "Best available"
+          : "Availability"}
       </p>
       {onViewAvailability && !isCreating && catchUp.participants.length > 0 ? (
         <button
@@ -215,16 +248,29 @@ function AvailabilitySection({
         group.participants,
       ])
     );
+    const perfect = isPerfectOverlap(bestSlot);
+    const availableById = new Map(
+      bestSlot.localTimes.map((lt) => [lt.participantId, lt.available !== false])
+    );
+    const recommendationMessage = perfect
+      ? "We found a time that works for everyone. Set a call and have fun catching up!"
+      : formatAvailableCountPrompt(bestSlot);
 
     return (
       <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
-        <p className="postcard-meta leading-relaxed">
-          We found a time that works for everyone.
-        </p>
         <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
           {dateLabel}
         </h3>
+        <p
+          className={
+            perfect
+              ? "postcard-meta leading-relaxed"
+              : "text-sm font-medium leading-relaxed text-ink-soft"
+          }
+        >
+          {recommendationMessage}
+        </p>
         <ul className="space-y-3">
           {places.map((place) => {
             const cityKey = place.cityLabel.trim().toLowerCase();
@@ -248,6 +294,7 @@ function AvailabilitySection({
                         <li key={person.id}>
                           <ParticipantTag
                             participant={person}
+                            available={availableById.get(person.id)}
                             onEdit={canEdit ? onEditParticipant : undefined}
                           />
                         </li>
@@ -279,12 +326,9 @@ function AvailabilitySection({
     return (
       <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
-        <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
-          No time works for everyone
-        </h3>
         <p className="postcard-meta leading-relaxed">
-          Unfortunately, we couldn&apos;t find an overlap to meet. Try adjusting
-          your availability.
+          We couldn&apos;t find a time that works for everyone. Click on View all
+          to see everyone&apos;s schedule and try adjusting.
         </p>
       </div>
     );
@@ -418,7 +462,7 @@ export function PostcardBackContent({
       <div className="postcard-back-invite flex min-h-0 flex-col">
         {/* Eyebrow rule */}
         <div className="flex shrink-0 items-center gap-3">
-          <p className="shrink-0 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-soft">
+          <p className="font-syne-mono shrink-0 text-[10px] font-medium uppercase tracking-[0.22em] text-ink-soft">
             Postcard
           </p>
           <div className="h-px min-w-0 flex-1 bg-ink/20" aria-hidden />

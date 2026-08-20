@@ -106,6 +106,8 @@ export interface LocalTimeDisplay {
   flagEmoji?: string;
   timeLabel: string;
   hour: number;
+  /** False when this person cannot join the recommended slot. */
+  available?: boolean;
 }
 
 export interface MeetingSlot {
@@ -115,6 +117,12 @@ export interface MeetingSlot {
   score: number;
   label: string;
   localTimes: LocalTimeDisplay[];
+  /** How many participants can make this time. */
+  availableCount: number;
+  /** Total participants considered for this invite. */
+  totalCount: number;
+  /** Display names of people who cannot make this time. */
+  unavailableNames: string[];
 }
 
 export interface TimezoneInfo {

@@ -37,6 +37,7 @@
   --font-display: var(--font-fraunces);
   --font-sans: var(--font-outfit);
   --font-hand: var(--font-schoolbell);
+  --font-postcard-body: var(--font-syne-mono);
 }
 
 * {
@@ -98,6 +99,10 @@ body > * {
 
 .font-hand {
   font-family: var(--font-schoolbell), "Segoe Print", cursive;
+}
+
+.font-syne-mono {
+  font-family: var(--font-syne-mono), ui-monospace, monospace;
 }
 
 .paper-card {

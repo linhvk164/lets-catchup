@@ -3,6 +3,11 @@
 import { DateTime } from "luxon";
 import { Button } from "@/components/ui";
 import { uniqueLocalTimesByCity } from "@/lib/local-times";
+import {
+  formatAvailableCountPrompt,
+  formatUnavailableSentence,
+} from "@/lib/meeting-copy";
+import { isPerfectOverlap } from "@/lib/scheduler";
 import type { MeetingSlot } from "@/lib/types";
 
 export function TimeSlotCard({
@@ -22,6 +27,8 @@ export function TimeSlotCard({
     .toFormat("cccc, LLLL d");
 
   const places = uniqueLocalTimesByCity(slot.localTimes);
+  const perfect = isPerfectOverlap(slot);
+  const unavailableLine = formatUnavailableSentence(slot.unavailableNames ?? []);
 
   return (
     <div
@@ -35,9 +42,20 @@ export function TimeSlotCard({
     >
       <div>
         <p className="text-xs uppercase tracking-[0.16em] text-ocean">
-          {selected ? "Selected" : featured ? "Best time" : "Also works"}
+          {selected
+            ? "Selected"
+            : featured
+              ? perfect
+                ? "Best time"
+                : "Best available"
+              : "Also works"}
         </p>
         <h2 className="mt-1 font-display text-2xl text-ink">{dateLabel}</h2>
+        {!perfect ? (
+          <p className="mt-1 text-sm font-medium text-ink-soft">
+            {formatAvailableCountPrompt(slot)}
+          </p>
+        ) : null}
       </div>
 
       <ul className="mt-4 space-y-2 border-t border-ink/8 pt-4">
@@ -54,6 +72,12 @@ export function TimeSlotCard({
           </li>
         ))}
       </ul>
+
+      {unavailableLine ? (
+        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
+          {unavailableLine}
+        </p>
+      ) : null}
 
       {onSelect ? (
         <Button

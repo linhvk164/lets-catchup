@@ -348,7 +348,7 @@ export function CatchUpInvitationClient() {
               {catchUp.participants.length < 2
                 ? "Waiting for everyone to add their availability."
                 : slots.length === 0
-                  ? "No time works for everyone"
+                  ? "No good times found"
                   : "Available times"}
             </h2>
             <button
@@ -374,8 +374,8 @@ export function CatchUpInvitationClient() {
           ) : slots.length === 0 ? (
             <div className="mt-4 rounded-2xl border border-ink/10 bg-white p-6 text-center">
               <p className="text-sm text-ink-soft">
-                Unfortunately, we couldn&apos;t find an overlap to meet. Try
-                adjusting your availability.
+                We couldn&apos;t find a time that works for most of the group at
+                reasonable hours. Try adjusting your availability.
               </p>
               <button
                 type="button"
