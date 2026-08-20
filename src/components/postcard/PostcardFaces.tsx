@@ -89,7 +89,7 @@ function ParticipantTag({
     return (
       <button
         type="button"
-        className={`${className} transition hover:brightness-95 active:scale-[0.98]`}
+        className={`${className} underline underline-offset-2 transition hover:brightness-95 active:scale-[0.98]`}
         style={{ backgroundColor: bg, color }}
         title={`Edit ${participant.name}`}
         aria-label={`Edit ${participant.name}`}
@@ -318,34 +318,6 @@ function AvailabilitySection({
   );
 }
 
-const nameLinkClass =
-  "font-normal underline underline-offset-2 transition-colors hover:text-ocean-deep";
-
-function ParticipantNameButton({
-  participant,
-  onEdit,
-}: {
-  participant: Participant;
-  onEdit?: (participant: Participant) => void;
-}) {
-  const label = participant.name;
-  if (!onEdit) {
-    return <span className="font-normal">{label}</span>;
-  }
-  return (
-    <button
-      type="button"
-      className={nameLinkClass}
-      onClick={(e) => {
-        e.stopPropagation();
-        onEdit(participant);
-      }}
-    >
-      {label}
-    </button>
-  );
-}
-
 export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
   const creator =
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
@@ -441,12 +413,6 @@ export function PostcardBackContent({
   const showDetailsHint =
     isDraft && !message && !title && !showFrom;
 
-  function editHandler(person: Participant) {
-    if (!onEditParticipant) return undefined;
-    if (canEditParticipant && !canEditParticipant(person)) return undefined;
-    return onEditParticipant;
-  }
-
   return (
     <div className="relative flex h-full flex-col overflow-hidden p-3.5 pb-8 sm:p-5 sm:pb-10">
       <div className="postcard-back-invite flex min-h-0 flex-col">
@@ -473,13 +439,9 @@ export function PostcardBackContent({
                 label="Postcard title"
               />
             ) : null}
-            {showFrom && creator ? (
+            {showFrom ? (
               <p className="postcard-meta mt-3 font-normal">
-                from{" "}
-                <ParticipantNameButton
-                  participant={creator}
-                  onEdit={editHandler(creator)}
-                />
+                from {creatorName}
               </p>
             ) : isDraft ? (
               <p className="postcard-meta mt-3 font-normal">
