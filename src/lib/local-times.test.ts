@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { uniqueLocalTimesByCity } from "./local-times";
+import { groupParticipantsByCity, uniqueLocalTimesByCity } from "./local-times";
 import type { LocalTimeDisplay } from "./types";
 
 function place(
@@ -40,5 +40,44 @@ test("uniqueLocalTimesByCity does not merge different cities in the same timezon
   assert.deepEqual(
     rows.map((r) => r.cityLabel).sort(),
     ["Montreal", "Toronto"]
+  );
+});
+
+test("groupParticipantsByCity nests people under one city label", () => {
+  const groups = groupParticipantsByCity([
+    {
+      id: "1",
+      name: "Linh",
+      timezone: "America/Toronto",
+      cityLabel: "Toronto",
+      availabilityText: "",
+      rules: [],
+      exceptions: [],
+    },
+    {
+      id: "2",
+      name: "Sarah",
+      timezone: "America/Toronto",
+      cityLabel: "Toronto",
+      availabilityText: "",
+      rules: [],
+      exceptions: [],
+    },
+    {
+      id: "3",
+      name: "Alex",
+      timezone: "America/Vancouver",
+      cityLabel: "Vancouver",
+      availabilityText: "",
+      rules: [],
+      exceptions: [],
+    },
+  ]);
+  assert.equal(groups.length, 2);
+  const toronto = groups.find((g) => g.cityLabel === "Toronto");
+  assert.ok(toronto);
+  assert.deepEqual(
+    toronto!.participants.map((p) => p.name),
+    ["Linh", "Sarah"]
   );
 });

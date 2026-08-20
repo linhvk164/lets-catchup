@@ -73,6 +73,8 @@ export interface Participant {
   countryCode?: string;
   countryLabel?: string;
   flagEmoji?: string;
+  /** Preset name-tag color on the postcard map. Stable across reloads. */
+  tagColor?: string;
   availabilityText: string;
   rules: AvailabilityRule[];
   /** Soft preferences for ranking (may be empty). */

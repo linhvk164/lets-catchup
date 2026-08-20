@@ -176,6 +176,7 @@ export function CatchUpInvitationClient() {
         draftToParticipant(draft, {
           id: editing.id,
           isCreator: editing.isCreator,
+          tagColor: editing.tagColor,
         })
       );
       return;

@@ -20,6 +20,7 @@ import {
   MESSAGE_TOO_LONG_HINT,
 } from "@/lib/postcard-copy";
 import { detectTimezone } from "@/lib/timezone";
+import { participantTagColorFromSeed } from "@/lib/participant-tag";
 import type {
   CatchUp,
   Participant,
@@ -66,6 +67,8 @@ export function buildDraftCatchUp(
     countryCode: values.timezone.countryCode,
     countryLabel: values.timezone.countryLabel,
     flagEmoji: values.timezone.flagEmoji,
+    tagColor:
+      existingCreator?.tagColor ?? participantTagColorFromSeed(creatorId),
     availabilityText: values.availability,
     rules: parsed.rules,
     preferences: parsed.preferences,

@@ -16,6 +16,7 @@ import {
 } from "@/lib/storage";
 import { apiCreateCatchUp } from "@/lib/catchup-api";
 import { markPostcardCelebrate } from "@/components/ConfettiBurst";
+import { pickRandomParticipantTagColor } from "@/lib/participant-tag";
 import type { CatchUp } from "@/lib/types";
 
 const participantId = customAlphabet("abcdefghijklmnopqrstuvwxyz0123456789", 6);
@@ -67,6 +68,7 @@ export default function CreatePage() {
             countryCode: values.timezone.countryCode,
             countryLabel: values.timezone.countryLabel,
             flagEmoji: values.timezone.flagEmoji,
+            tagColor: pickRandomParticipantTagColor(),
             availabilityText: values.availability.trim(),
             rules: parsedAvailability.rules,
             preferences: parsedAvailability.preferences,

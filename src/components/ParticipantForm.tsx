@@ -5,6 +5,7 @@ import { AvailabilityInterpretation } from "@/components/AvailabilityInterpretat
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { Button, Field, TextArea } from "@/components/ui";
 import { parseAvailabilityInput } from "@/lib/availability";
+import { pickRandomParticipantTagColor } from "@/lib/participant-tag";
 import { detectTimezone, getTimezoneInfo } from "@/lib/timezone";
 import type { Participant, TimezoneInfo } from "@/lib/types";
 import { createParticipantId } from "@/hooks/useCatchUp";
@@ -25,7 +26,7 @@ export function participantToDraft(p: Participant): ParticipantDraft {
 
 export function draftToParticipant(
   draft: ParticipantDraft,
-  opts?: { id?: string; isCreator?: boolean }
+  opts?: { id?: string; isCreator?: boolean; tagColor?: string }
 ): Participant {
   const parsed = parseAvailabilityInput(draft.availability.trim());
   return {
@@ -36,6 +37,7 @@ export function draftToParticipant(
     countryCode: draft.timezone.countryCode,
     countryLabel: draft.timezone.countryLabel,
     flagEmoji: draft.timezone.flagEmoji,
+    tagColor: opts?.tagColor ?? pickRandomParticipantTagColor(),
     availabilityText: draft.availability.trim(),
     rules: parsed.rules,
     preferences: parsed.preferences,

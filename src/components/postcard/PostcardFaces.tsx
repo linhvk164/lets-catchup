@@ -9,7 +9,14 @@ import type {
   PostcardPhoto,
 } from "@/lib/types";
 import { resolvePhotoSrc } from "@/lib/photos";
-import { uniqueLocalTimesByCity } from "@/lib/local-times";
+import {
+  groupParticipantsByCity,
+  uniqueLocalTimesByCity,
+} from "@/lib/local-times";
+import {
+  contrastingTagTextColor,
+  resolveParticipantTagColor,
+} from "@/lib/participant-tag";
 import {
   ENTER_DETAILS_HINT,
   resolvePostcardMessage,
@@ -66,18 +73,102 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
   );
 }
 
+function ParticipantTag({
+  participant,
+  onEdit,
+}: {
+  participant: Participant;
+  onEdit?: (participant: Participant) => void;
+}) {
+  const bg = resolveParticipantTagColor(participant);
+  const color = contrastingTagTextColor(bg);
+  const className =
+    "inline-block max-w-[7.5rem] truncate rounded-md px-2.5 py-1 text-[0.875rem] font-medium leading-tight shadow-[0_1px_2px_rgba(30,51,64,0.14)]";
+
+  if (onEdit) {
+    return (
+      <button
+        type="button"
+        className={`${className} transition hover:brightness-95 active:scale-[0.98]`}
+        style={{ backgroundColor: bg, color }}
+        title={`Edit ${participant.name}`}
+        aria-label={`Edit ${participant.name}`}
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit(participant);
+        }}
+      >
+        {participant.name}
+      </button>
+    );
+  }
+
+  return (
+    <span
+      className={className}
+      style={{ backgroundColor: bg, color }}
+      title={participant.name}
+    >
+      {participant.name}
+    </span>
+  );
+}
+
+function CalendarIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className={className}
+    >
+      <rect
+        x="2"
+        y="3.5"
+        width="12"
+        height="10.5"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+      />
+      <path
+        d="M2 6.5h12"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="M5 2v2.5M11 2v2.5"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+      <path
+        d="M5 9h.01M8 9h.01M11 9h.01M5 11.5h.01M8 11.5h.01M11 11.5h.01"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
 function AvailabilitySection({
   catchUp,
   bestSlot,
   moreCount,
   onViewMore,
   onViewAvailability,
+  onEditParticipant,
+  canEditParticipant,
 }: {
   catchUp: CatchUp;
   bestSlot: MeetingSlot | null;
   moreCount: number;
   onViewMore?: () => void;
   onViewAvailability?: () => void;
+  onEditParticipant?: (participant: Participant) => void;
+  canEditParticipant?: (participant: Participant) => boolean;
 }) {
   const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
   const hasFriends = catchUp.participants.length >= 2;
@@ -102,9 +193,11 @@ function AvailabilitySection({
             e.stopPropagation();
             onViewAvailability();
           }}
-          className="postcard-meta shrink-0 text-ocean underline underline-offset-2 transition-colors hover:text-ocean-deep"
+          className="postcard-meta inline-flex shrink-0 items-center gap-1 text-ink-soft transition hover:text-ocean-deep"
+          aria-label="View all schedules"
         >
-           See everyone's schedule
+          <CalendarIcon />
+          <span>View all</span>
         </button>
       ) : null}
     </div>
@@ -116,6 +209,12 @@ function AvailabilitySection({
       .setZone(first?.timezone ?? "UTC")
       .toFormat("cccc, LLLL d");
     const places = uniqueLocalTimesByCity(bestSlot.localTimes);
+    const peopleByCity = new Map(
+      groupParticipantsByCity(catchUp.participants).map((group) => [
+        group.cityKey,
+        group.participants,
+      ])
+    );
 
     return (
       <div className="postcard-back-availability space-y-2 text-left">
@@ -126,19 +225,39 @@ function AvailabilitySection({
         <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
           {dateLabel}
         </h3>
-        <ul className="space-y-1.5">
-          {places.map((place) => (
-            <li
-              key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}
-              className="postcard-meta flex min-w-0 items-baseline justify-between gap-2"
-            >
-              <span className="postcard-meta--medium min-w-0 truncate">
-                {place.cityLabel}
-                {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
-              </span>
-              <span className="shrink-0">{place.timeLabel}</span>
-            </li>
-          ))}
+        <ul className="space-y-3">
+          {places.map((place) => {
+            const cityKey = place.cityLabel.trim().toLowerCase();
+            const people = peopleByCity.get(cityKey) ?? [];
+            return (
+              <li key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}>
+                <div className="postcard-meta flex min-w-0 items-baseline justify-between gap-2">
+                  <span className="postcard-meta--medium min-w-0 truncate">
+                    {place.cityLabel}
+                    {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+                  </span>
+                  <span className="shrink-0">{place.timeLabel}</span>
+                </div>
+                {people.length > 0 ? (
+                  <ul className="mt-1.5 flex flex-wrap gap-1.5">
+                    {people.map((person) => {
+                      const canEdit =
+                        onEditParticipant &&
+                        (!canEditParticipant || canEditParticipant(person));
+                      return (
+                        <li key={person.id}>
+                          <ParticipantTag
+                            participant={person}
+                            onEdit={canEdit ? onEditParticipant : undefined}
+                          />
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : null}
+              </li>
+            );
+          })}
         </ul>
         {moreCount > 0 && onViewMore ? (
           <button
@@ -322,25 +441,6 @@ export function PostcardBackContent({
   const showDetailsHint =
     isDraft && !message && !title && !showFrom;
 
-  const recipients = catchUp.participants
-    .filter((p) => !p.isCreator)
-    .filter((p) => {
-      const name = p.name?.trim();
-      if (!name) return false;
-      // Hide draft placeholder "You"; keep real recipients named You (e.g. landing demo).
-      if (name === "You" && (!creatorName || creatorName === "You")) return false;
-      return true;
-    });
-
-  // During create/preview with a single named person, treat them as sender only.
-  // If somehow no isCreator flags, show non-first participants as recipients.
-  const recipientPeople =
-    recipients.length > 0
-      ? recipients
-      : catchUp.participants.length > 1
-        ? catchUp.participants.slice(1)
-        : [];
-
   function editHandler(person: Participant) {
     if (!onEditParticipant) return undefined;
     if (canEditParticipant && !canEditParticipant(person)) return undefined;
@@ -387,24 +487,6 @@ export function PostcardBackContent({
                 <PostcardWriteLine inline label="Your name" />
               </p>
             ) : null}
-            {recipientPeople.length > 0 ? (
-              <p
-                className={`postcard-meta font-normal ${showFrom || isDraft ? "mt-1.5" : "mt-3"}`}
-              >
-                to{" "}
-                <span>
-                  {recipientPeople.map((person, i) => (
-                    <span key={person.id}>
-                      {i > 0 ? ", " : ""}
-                      <ParticipantNameButton
-                        participant={person}
-                        onEdit={editHandler(person)}
-                      />
-                    </span>
-                  ))}
-                </span>
-              </p>
-            ) : null}
           </div>
           <StampArea />
         </div>
@@ -448,6 +530,8 @@ export function PostcardBackContent({
           moreCount={moreCount}
           onViewMore={onViewMore}
           onViewAvailability={onViewAvailability}
+          onEditParticipant={onEditParticipant}
+          canEditParticipant={canEditParticipant}
         />
       </div>
 

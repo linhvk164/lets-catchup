@@ -145,6 +145,7 @@ function leanParticipant(p: Participant): Participant {
   if (p.countryCode) lean.countryCode = p.countryCode;
   if (p.countryLabel) lean.countryLabel = p.countryLabel;
   if (p.flagEmoji) lean.flagEmoji = p.flagEmoji;
+  if (p.tagColor) lean.tagColor = p.tagColor;
   if (p.preferences?.length) lean.preferences = p.preferences;
   if (p.flexibility) lean.flexibility = p.flexibility;
   if (p.isCreator) lean.isCreator = true;
