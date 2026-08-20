@@ -89,7 +89,7 @@ function AvailabilitySummaryList({
       <p className="text-xs uppercase tracking-[0.14em] text-ink-soft">
         Everyone&apos;s availability
       </p>
-      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <ul className="grid grid-cols-1 items-stretch gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map(({ participant, lines }) => {
           const canEdit =
             onEditParticipant &&
@@ -121,18 +121,18 @@ function AvailabilitySummaryList({
             </>
           );
           return (
-            <li key={participant.id} className="min-w-0">
+            <li key={participant.id} className="flex min-h-0 min-w-0">
               {canEdit ? (
                 <button
                   type="button"
                   onClick={() => onEditParticipant(participant)}
-                  className="flex w-full flex-col items-start rounded-xl border border-ink/15 px-3 py-2.5 text-left transition hover:border-ocean/35"
+                  className="flex h-full w-full flex-col items-stretch rounded-xl border border-ink/15 px-3 py-2.5 text-left transition hover:border-ocean/35"
                   aria-label={`Edit ${participant.name}`}
                 >
                   {body}
                 </button>
               ) : (
-                <div className="flex w-full flex-col items-start rounded-xl border border-ink/15 px-3 py-2.5 text-left">
+                <div className="flex h-full w-full flex-col items-stretch rounded-xl border border-ink/15 px-3 py-2.5 text-left">
                   {body}
                 </div>
               )}
