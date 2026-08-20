@@ -89,21 +89,21 @@ function AvailabilitySummaryList({
       <p className="text-xs uppercase tracking-[0.14em] text-ink-soft">
         Everyone&apos;s availability
       </p>
-      <ul className="flex flex-wrap gap-2">
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {rows.map(({ participant, lines }) => {
           const canEdit =
             onEditParticipant &&
             (!canEditParticipant || canEditParticipant(participant));
           const body = (
             <>
-              <span className="flex items-start justify-between gap-2">
+              <span className="flex w-full items-start justify-between gap-2">
                 <span className="min-w-0 text-sm font-medium text-ink">
                   {participant.name}
                   {participant.flagEmoji ? ` ${participant.flagEmoji}` : ""}
                 </span>
                 {canEdit ? (
                   <span
-                    className="mt-0.5 shrink-0 rounded-md bg-ink/[0.04] p-1 text-ocean-deep"
+                    className="shrink-0 rounded-md bg-ink/[0.04] p-1 text-ocean-deep"
                     aria-hidden
                   >
                     <EditIcon className="h-3.5 w-3.5" />
@@ -121,21 +121,18 @@ function AvailabilitySummaryList({
             </>
           );
           return (
-            <li
-              key={participant.id}
-              className="min-w-[10.5rem] max-w-full flex-1 sm:min-w-[12rem] sm:flex-none"
-            >
+            <li key={participant.id} className="min-w-0">
               {canEdit ? (
                 <button
                   type="button"
                   onClick={() => onEditParticipant(participant)}
-                  className="h-full w-full rounded-xl border border-ink/15 bg-paper/90 px-3 py-2.5 text-left shadow-[0_1px_0_rgba(31,79,92,0.04)] transition hover:border-ocean/35 hover:bg-white"
+                  className="flex w-full flex-col items-start rounded-xl border border-ink/15 px-3 py-2.5 text-left transition hover:border-ocean/35"
                   aria-label={`Edit ${participant.name}`}
                 >
                   {body}
                 </button>
               ) : (
-                <div className="h-full w-full rounded-xl border border-ink/15 bg-paper/90 px-3 py-2.5 text-left">
+                <div className="flex w-full flex-col items-start rounded-xl border border-ink/15 px-3 py-2.5 text-left">
                   {body}
                 </div>
               )}
