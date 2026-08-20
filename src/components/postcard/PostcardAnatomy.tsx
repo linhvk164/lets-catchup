@@ -307,7 +307,7 @@ export function EditableTitle({
 
   if (!editable || !onChange) {
     return (
-      <p className="font-display text-lg leading-tight tracking-tight text-ink sm:text-2xl lg:text-3xl">
+      <p className="font-display text-2xl leading-tight tracking-tight text-ink sm:text-2xl lg:text-3xl">
         {value}
       </p>
     );

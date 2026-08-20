@@ -198,7 +198,7 @@ export function ParticipantEditorSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-ink/40 pt-3 sm:items-center sm:p-6">
+    <div className="fixed inset-0 z-[60] flex items-end justify-center overflow-hidden bg-ink/40 pt-3 sm:items-center sm:p-6">
       <button type="button" className="absolute inset-0" aria-label="Close" onClick={onClose} />
       <div className="relative z-10 max-h-[calc(100dvh-0.75rem)] w-full max-w-lg overflow-y-auto overscroll-contain rounded-t-2xl bg-white p-5 shadow-xl sm:max-h-[90vh] sm:rounded-2xl sm:p-6">
         <div className="mb-5 flex items-center justify-between gap-3">

@@ -9,7 +9,7 @@ import {
   ParticipantEditorSheet,
   type ParticipantDraft,
 } from "@/components/ParticipantForm";
-import { TimeSlotCard } from "@/components/TimeSlotCard";
+import { AvailabilityScheduler } from "@/components/AvailabilityScheduler";
 import { AvailabilityTimelineSheet } from "@/components/AvailabilityTimeline";
 import { Button } from "@/components/ui";
 import { createParticipantId, useCatchUp } from "@/hooks/useCatchUp";
@@ -37,6 +37,7 @@ export function CatchUpInvitationClient() {
     catchUp,
     loading,
     slots,
+    calendarSlots,
     bestSlot,
     selectedSlot,
     moreCount,
@@ -386,18 +387,15 @@ export function CatchUpInvitationClient() {
               </button>
             </div>
           ) : (
-            <ul className="mt-4 grid gap-4 lg:grid-cols-2">
-              {slots.map((slot, index) => (
-                <li key={slot.id}>
-                  <TimeSlotCard
-                    slot={slot}
-                    featured={index === 0}
-                    selected={selectedSlot?.id === slot.id}
-                    onSelect={() => handleSelectSlot(slot)}
-                  />
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              <AvailabilityScheduler
+                slots={calendarSlots}
+                recommendationBestId={slots[0]?.id}
+                participants={catchUp.participants}
+                selectedSlotId={selectedSlot?.id}
+                onSelectSlot={handleSelectSlot}
+              />
+            </div>
           )}
         </section>
       </main>
@@ -409,6 +407,24 @@ export function CatchUpInvitationClient() {
         slots={slots}
         initialSlotId={bestSlot?.id}
         onSelectSlot={handleSelectSlot}
+        canEditParticipant={() => true}
+        onSaveParticipant={(participant, draft) => {
+          updateParticipant(
+            participant.id,
+            draftToParticipant(draft, {
+              id: participant.id,
+              isCreator: participant.isCreator,
+              tagColor: participant.tagColor,
+            })
+          );
+        }}
+        onRemoveParticipant={
+          isCreator
+            ? (participant) => {
+                if (!participant.isCreator) removeParticipant(participant.id);
+              }
+            : undefined
+        }
       />
 
       <ParticipantEditorSheet

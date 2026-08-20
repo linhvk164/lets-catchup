@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { customAlphabet } from "nanoid";
-import { findMeetingSlots, getSelectedSlot } from "@/lib/scheduler";
+import { expandMeetingSlotsAcrossWeeks, findMeetingSlots, getSelectedSlot } from "@/lib/scheduler";
 import { apiGetCatchUp, apiPutCatchUp } from "@/lib/catchup-api";
 import {
   buildSharePath,
@@ -135,6 +135,13 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
     [catchUp]
   );
 
+  /** Recurring projections of the top recommendations across this week + next 3. */
+  const calendarSlots = useMemo(
+    () =>
+      catchUp ? expandMeetingSlotsAcrossWeeks(catchUp, slots, 4) : [],
+    [catchUp, slots]
+  );
+
   const selectedSlot = useMemo(() => {
     if (!catchUp) return null;
     if (!catchUp.selectedSlotId) return null;
@@ -227,6 +234,7 @@ export function useCatchUp(id: string, encodedFromUrl?: string | null) {
     loading,
     error,
     slots,
+    calendarSlots,
     bestSlot,
     selectedSlot,
     moreCount,

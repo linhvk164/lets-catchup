@@ -9,10 +9,7 @@ import type {
   PostcardPhoto,
 } from "@/lib/types";
 import { resolvePhotoSrc } from "@/lib/photos";
-import {
-  groupParticipantsByCity,
-  uniqueLocalTimesByCity,
-} from "@/lib/local-times";
+import { uniqueLocalTimesByCity } from "@/lib/local-times";
 import { formatAvailableCountPrompt } from "@/lib/meeting-copy";
 import { isPerfectOverlap } from "@/lib/scheduler";
 import {
@@ -71,71 +68,6 @@ export function CitiesFront({ photo }: { photo?: PostcardPhoto }) {
   );
 }
 
-function ParticipantName({
-  participant,
-  onEdit,
-  available,
-}: {
-  participant: Participant;
-  onEdit?: (participant: Participant) => void;
-  /** When set, shows ✓ or × for whether this time works for them. */
-  available?: boolean;
-}) {
-  const mark =
-    available === undefined ? null : available ? (
-      <span aria-hidden> ✓</span>
-    ) : (
-      <span aria-hidden> ×</span>
-    );
-  const availabilityLabel =
-    available === undefined
-      ? undefined
-      : available
-        ? `${participant.name} is available`
-        : `${participant.name} is not available`;
-  // One inline text run so underline is a single continuous line under name + mark.
-  // Match TimeSlotCard secondary copy (time / unavailable lines).
-  const content = (
-    <>
-      {participant.name}
-      {mark}
-    </>
-  );
-  const className =
-    "inline text-sm leading-snug text-ink-soft underline underline-offset-2";
-
-  if (onEdit) {
-    return (
-      <button
-        type="button"
-        className={`${className} transition hover:text-ocean-deep`}
-        title={availabilityLabel ?? `Edit ${participant.name}`}
-        aria-label={
-          availabilityLabel
-            ? `Edit ${participant.name}. ${availabilityLabel}`
-            : `Edit ${participant.name}`
-        }
-        onClick={(e) => {
-          e.stopPropagation();
-          onEdit(participant);
-        }}
-      >
-        {content}
-      </button>
-    );
-  }
-
-  return (
-    <span
-      className={className}
-      title={availabilityLabel ?? participant.name}
-      aria-label={availabilityLabel}
-    >
-      {content}
-    </span>
-  );
-}
-
 function CalendarIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg
@@ -181,16 +113,12 @@ function AvailabilitySection({
   moreCount,
   onViewMore,
   onViewAvailability,
-  onEditParticipant,
-  canEditParticipant,
 }: {
   catchUp: CatchUp;
   bestSlot: MeetingSlot | null;
   moreCount: number;
   onViewMore?: () => void;
   onViewAvailability?: () => void;
-  onEditParticipant?: (participant: Participant) => void;
-  canEditParticipant?: (participant: Participant) => boolean;
 }) {
   const isCreating = catchUp.id === "draft" || catchUp.id === "landing";
   const hasFriends = catchUp.participants.length >= 2;
@@ -225,10 +153,10 @@ function AvailabilitySection({
             onViewAvailability();
           }}
           className="postcard-meta inline-flex shrink-0 items-center gap-1 text-ink-soft transition hover:text-ocean-deep"
-          aria-label="View all schedules"
+          aria-label="View and edit schedules"
         >
           <CalendarIcon />
-          <span>View all</span>
+          <span>View and edit</span>
         </button>
       ) : null}
     </div>
@@ -240,78 +168,41 @@ function AvailabilitySection({
       .setZone(first?.timezone ?? "UTC")
       .toFormat("cccc, LLLL d");
     const places = uniqueLocalTimesByCity(bestSlot.localTimes);
-    const peopleByCity = new Map(
-      groupParticipantsByCity(catchUp.participants).map((group) => [
-        group.cityKey,
-        group.participants,
-      ])
-    );
     const perfect = isPerfectOverlap(bestSlot);
-    const availableById = new Map(
-      bestSlot.localTimes.map((lt) => [lt.participantId, lt.available !== false])
-    );
-    const recommendationMessage = perfect
-      ? "We found a time that works for everyone. Set a call and have fun catching up!"
+    const unavailablePrompt = perfect
+      ? null
       : formatAvailableCountPrompt(bestSlot);
 
     return (
       <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
-        <h3 className="font-display text-base leading-snug text-ink sm:text-xl lg:text-2xl">
+        <h3 className="font-display text-xl leading-snug text-ink sm:text-xl lg:text-2xl">
           {dateLabel}
         </h3>
-        <p
-          className={
-            perfect
-              ? "postcard-meta leading-relaxed"
-              : "text-sm font-medium leading-relaxed text-ink-soft"
-          }
-        >
-          {recommendationMessage}
-        </p>
-        <ul className="mt-3 space-y-3 sm:mt-4">
-          {places.map((place) => {
-            const cityKey = place.cityLabel.trim().toLowerCase();
-            const people = peopleByCity.get(cityKey) ?? [];
-            return (
-              <li key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}>
-                <div className="postcard-meta flex min-w-0 items-baseline justify-between gap-2">
-                  <span className="postcard-meta--medium min-w-0 truncate">
-                    {place.cityLabel}
-                    {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
-                  </span>
-                  <span className="shrink-0">{place.timeLabel}</span>
-                </div>
-                {people.length > 0 ? (
-                  <ul className="mt-1 flex flex-wrap items-baseline gap-y-0.5">
-                    {people.map((person, index) => {
-                      const canEdit =
-                        onEditParticipant &&
-                        (!canEditParticipant || canEditParticipant(person));
-                      return (
-                        <li key={person.id} className="min-w-0">
-                          {index > 0 ? (
-                            <span
-                              className="text-sm leading-snug text-ink-soft"
-                              aria-hidden
-                            >
-                              ,{" "}
-                            </span>
-                          ) : null}
-                          <ParticipantName
-                            participant={person}
-                            available={availableById.get(person.id)}
-                            onEdit={canEdit ? onEditParticipant : undefined}
-                          />
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : null}
-              </li>
-            );
-          })}
+        {perfect ? (
+          <p className="postcard-meta leading-relaxed">
+            We found a time that works for everyone. Set a call and have fun
+            catching up!
+          </p>
+        ) : null}
+        <ul className="mt-3 space-y-2 sm:mt-4">
+          {places.map((place) => (
+            <li key={`${place.cityLabel}-${place.hour}-${place.timeLabel}`}>
+              <div className="postcard-meta flex min-w-0 items-baseline justify-between gap-2">
+                <span className="postcard-meta--medium min-w-0 truncate">
+                  {place.cityLabel}
+                  {place.flagEmoji ? ` ${place.flagEmoji}` : ""}
+                </span>
+                <span className="shrink-0">{place.timeLabel}</span>
+              </div>
+            </li>
+          ))}
         </ul>
+        {unavailablePrompt ? (
+          <p className="text-sm font-light leading-relaxed text-ink-soft">
+            {unavailablePrompt}
+          </p>
+        ) : null}
         {moreCount > 0 && onViewMore ? (
           <button
             type="button"
@@ -333,8 +224,8 @@ function AvailabilitySection({
       <div className="postcard-back-availability space-y-2 text-left">
         {availabilityHeading}
         <p className="postcard-meta leading-relaxed">
-          We couldn&apos;t find a time that works for everyone. Click on View all
-          to see everyone&apos;s schedule and try adjusting.
+          We couldn&apos;t find a time that works for everyone. Click on View and
+          edit to see everyone&apos;s schedule and try adjusting.
         </p>
       </div>
     );
@@ -383,7 +274,7 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
       </div>
       <div className="postcard-layer-text relative z-[1] shrink-0 space-y-0.5 px-3.5 py-2.5 pr-14 text-left sm:space-y-1 sm:px-5 sm:py-3.5 sm:pr-16">
         {title ? (
-          <h2 className="font-display text-lg tracking-tight text-ink sm:text-2xl lg:text-3xl">
+          <h2 className="font-display text-2xl tracking-tight text-ink sm:text-2xl lg:text-3xl">
             {title}
           </h2>
         ) : isDraft ? (
@@ -392,7 +283,7 @@ export function PostcardFrontContent({ catchUp }: { catchUp: CatchUp }) {
             label="Postcard title"
           />
         ) : (
-          <h2 className="font-display text-lg tracking-tight text-ink sm:text-2xl lg:text-3xl">
+          <h2 className="font-display text-2xl tracking-tight text-ink sm:text-2xl lg:text-3xl">
             &nbsp;
           </h2>
         )}
@@ -430,8 +321,6 @@ export function PostcardBackContent({
   bestSlot,
   moreCount = 0,
   onViewMore,
-  onEditParticipant,
-  canEditParticipant,
   onViewAvailability,
   onUpdateTitle,
   onUpdateMessage,
@@ -457,6 +346,11 @@ export function PostcardBackContent({
     catchUp.participants.find((p) => p.isCreator) ?? catchUp.participants[0];
   const creatorName = creator?.name?.trim();
   const showFrom = Boolean(creatorName && creatorName !== "You");
+  const recipients = catchUp.participants
+    .filter((p) => p.id !== creator?.id)
+    .map((p) => p.name.trim())
+    .filter(Boolean);
+  const toLine = recipients.length > 0 ? recipients.join(", ") : null;
   const message = resolvePostcardMessage(catchUp.message);
   const isDraft = catchUp.id === "draft";
   const title = catchUp.title?.trim() ?? "";
@@ -498,6 +392,9 @@ export function PostcardBackContent({
                 from
                 <PostcardWriteLine inline label="Your name" />
               </p>
+            ) : null}
+            {toLine ? (
+              <p className="postcard-meta mt-1 font-normal">to {toLine}</p>
             ) : null}
           </div>
           <StampArea />
@@ -542,8 +439,6 @@ export function PostcardBackContent({
           moreCount={moreCount}
           onViewMore={onViewMore}
           onViewAvailability={onViewAvailability}
-          onEditParticipant={onEditParticipant}
-          canEditParticipant={canEditParticipant}
         />
       </div>
 

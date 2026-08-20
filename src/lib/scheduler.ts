@@ -380,6 +380,8 @@ export interface FindSlotsOptions {
   limit?: number;
   /** Minimum minutes between picked slots (default 120). */
   minGapMinutes?: number;
+  /** How many days ahead to search (default 14). */
+  searchDays?: number;
   /** Override “now” for deterministic tests. */
   now?: DateTime;
 }
@@ -392,12 +394,17 @@ export function findMeetingSlots(
   catchUp: CatchUp,
   options: FindSlotsOptions = {}
 ): MeetingSlot[] {
-  const { limit = 12, minGapMinutes = 120, now: nowOption } = options;
+  const {
+    limit = 12,
+    minGapMinutes = 120,
+    searchDays = SEARCH_DAYS,
+    now: nowOption,
+  } = options;
   const { participants, duration } = catchUp;
   if (participants.length === 0) return [];
 
   const now = (nowOption ?? DateTime.utc()).plus({ minutes: 30 });
-  const horizon = now.plus({ days: SEARCH_DAYS });
+  const horizon = now.plus({ days: searchDays });
   const total = participants.length;
 
   const windowsByParticipant = participants.map((p) =>
@@ -534,6 +541,94 @@ export function getSelectedSlot(
     }
   }
   return list[0];
+}
+
+/**
+ * Project top recommended times onto the same weekday/clock time for the
+ * next few weeks when recurring availability still allows it. Keeps the
+ * short recommendation list small while filling the calendar ahead.
+ */
+export function expandMeetingSlotsAcrossWeeks(
+  catchUp: CatchUp,
+  baseSlots: MeetingSlot[],
+  weekCount = 4
+): MeetingSlot[] {
+  const { participants, duration } = catchUp;
+  if (participants.length === 0 || baseSlots.length === 0) return baseSlots;
+
+  const now = DateTime.utc().plus({ minutes: 30 });
+  const horizon = now.plus({ weeks: weekCount });
+  const windowsByParticipant = participants.map((p) =>
+    participantWindows(p, now, horizon)
+  );
+  const total = participants.length;
+  const creatorTz = participants[0]?.timezone ?? "UTC";
+  const weekOrigin = now.setZone(creatorTz).startOf("week");
+  const byId = new Map<string, MeetingSlot>();
+
+  for (const slot of baseSlots) {
+    byId.set(slot.id, slot);
+  }
+
+  for (const base of baseSlots) {
+    const baseLocal = DateTime.fromISO(base.startUtc, { zone: "utc" }).setZone(
+      creatorTz
+    );
+    if (!baseLocal.isValid) continue;
+
+    for (let w = 0; w < weekCount; w++) {
+      const day = weekOrigin
+        .plus({ weeks: w, days: baseLocal.weekday - 1 })
+        .set({
+          hour: baseLocal.hour,
+          minute: baseLocal.minute,
+          second: 0,
+          millisecond: 0,
+        });
+      const start = day.toUTC();
+      if (!start.isValid || start < now || start > horizon) continue;
+
+      const end = start.plus({ minutes: duration });
+      const startIso = start.toISO();
+      const endIso = end.toISO();
+      if (!startIso || !endIso || byId.has(startIso)) continue;
+
+      const unreasonable = participants.some((p) => {
+        const band = hourBand(localHour(startIso, p.timezone));
+        return band === "avoid";
+      });
+      if (unreasonable) continue;
+
+      const available: Participant[] = [];
+      for (let i = 0; i < participants.length; i++) {
+        if (coversInterval(windowsByParticipant[i], start, end)) {
+          available.push(participants[i]);
+        }
+      }
+
+      const availableCount = available.length;
+      if (availableCount / total < MIN_AVAILABLE_RATIO) continue;
+
+      const availableIds = new Set(available.map((p) => p.id));
+      byId.set(startIso, {
+        id: startIso,
+        startUtc: startIso,
+        endUtc: endIso,
+        score: scoreCandidate(start, participants, available),
+        label: formatSlotDate(startIso, creatorTz),
+        localTimes: buildLocalTimes(startIso, participants, availableIds),
+        availableCount,
+        totalCount: total,
+        unavailableNames: participants
+          .filter((p) => !availableIds.has(p.id))
+          .map((p) => p.name.trim() || "Someone"),
+      });
+    }
+  }
+
+  return [...byId.values()].sort(
+    (a, b) => b.score - a.score || a.startUtc.localeCompare(b.startUtc)
+  );
 }
 
 export function isPerfectOverlap(slot: MeetingSlot): boolean {

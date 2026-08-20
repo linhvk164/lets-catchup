@@ -609,8 +609,8 @@ body > * {
 .postcard-title-edit {
   display: block;
   width: 100%;
-  /* Match display titles: text-lg / sm:text-2xl / lg:text-3xl */
-  font-size: 1.125rem;
+  /* Match display titles: text-2xl / sm:text-2xl / lg:text-3xl */
+  font-size: 1.5rem;
   line-height: 1.2;
   letter-spacing: -0.02em;
   color: var(--ink);

@@ -3,9 +3,57 @@
 import { useEffect, useMemo, useState } from "react";
 import { DateTime } from "luxon";
 import { Button } from "@/components/ui";
+import {
+  ParticipantForm,
+  participantToDraft,
+  type ParticipantDraft,
+} from "@/components/ParticipantForm";
 import { parseAvailabilityInput } from "@/lib/availability";
 import { buildAvailabilityTimeline } from "@/lib/timeline";
 import type { MeetingSlot, Participant } from "@/lib/types";
+
+function EditIcon({ className = "h-3.5 w-3.5" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className={className}
+    >
+      <path
+        d="M11.5 2.5l2 2L5.75 12.25 3 13l.75-2.75L11.5 2.5z"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M10.25 3.75l2 2"
+        stroke="currentColor"
+        strokeWidth="1.25"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function BackIcon({ className = "h-4 w-4" }: { className?: string }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-hidden
+      className={className}
+    >
+      <path
+        d="M10 3L5 8l5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 /**
  * Everyone's availability in words. The timeline only draws a single day, so
@@ -13,8 +61,12 @@ import type { MeetingSlot, Participant } from "@/lib/types";
  */
 function AvailabilitySummaryList({
   participants,
+  onEditParticipant,
+  canEditParticipant,
 }: {
   participants: Participant[];
+  onEditParticipant?: (participant: Participant) => void;
+  canEditParticipant?: (participant: Participant) => boolean;
 }) {
   const rows = useMemo(
     () =>
@@ -37,20 +89,59 @@ function AvailabilitySummaryList({
       <p className="text-xs uppercase tracking-[0.14em] text-ink-soft">
         Everyone&apos;s availability
       </p>
-      <ul className="space-y-2.5">
-        {rows.map(({ participant, lines }) => (
-          <li key={participant.id}>
-            <p className="text-sm font-medium text-ink">
-              {participant.name}
-              {participant.flagEmoji ? ` ${participant.flagEmoji}` : ""}
-            </p>
-            {lines.map((line) => (
-              <p key={line} className="text-sm leading-relaxed text-ink-soft">
-                {line}
-              </p>
-            ))}
-          </li>
-        ))}
+      <ul className="flex flex-wrap gap-2">
+        {rows.map(({ participant, lines }) => {
+          const canEdit =
+            onEditParticipant &&
+            (!canEditParticipant || canEditParticipant(participant));
+          const body = (
+            <>
+              <span className="flex items-start justify-between gap-2">
+                <span className="min-w-0 text-sm font-medium text-ink">
+                  {participant.name}
+                  {participant.flagEmoji ? ` ${participant.flagEmoji}` : ""}
+                </span>
+                {canEdit ? (
+                  <span
+                    className="mt-0.5 shrink-0 rounded-md bg-ink/[0.04] p-1 text-ocean-deep"
+                    aria-hidden
+                  >
+                    <EditIcon className="h-3.5 w-3.5" />
+                  </span>
+                ) : null}
+              </span>
+              {lines.map((line) => (
+                <span
+                  key={line}
+                  className="mt-0.5 block text-xs leading-relaxed text-ink-soft"
+                >
+                  {line}
+                </span>
+              ))}
+            </>
+          );
+          return (
+            <li
+              key={participant.id}
+              className="min-w-[10.5rem] max-w-full flex-1 sm:min-w-[12rem] sm:flex-none"
+            >
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={() => onEditParticipant(participant)}
+                  className="h-full w-full rounded-xl border border-ink/15 bg-paper/90 px-3 py-2.5 text-left shadow-[0_1px_0_rgba(31,79,92,0.04)] transition hover:border-ocean/35 hover:bg-white"
+                  aria-label={`Edit ${participant.name}`}
+                >
+                  {body}
+                </button>
+              ) : (
+                <div className="h-full w-full rounded-xl border border-ink/15 bg-paper/90 px-3 py-2.5 text-left">
+                  {body}
+                </div>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -62,12 +153,16 @@ export function AvailabilityTimeline({
   activeSlotId,
   onActiveSlotChange,
   onSelectSlot,
+  onEditParticipant,
+  canEditParticipant,
 }: {
   participants: Participant[];
   slots: MeetingSlot[];
   activeSlotId?: string | null;
   onActiveSlotChange?: (slotId: string) => void;
   onSelectSlot?: (slot: MeetingSlot) => void;
+  onEditParticipant?: (participant: Participant) => void;
+  canEditParticipant?: (participant: Participant) => boolean;
 }) {
   const activeSlot =
     slots.find((s) => s.id === activeSlotId) ?? slots[0] ?? null;
@@ -149,7 +244,7 @@ export function AvailabilityTimeline({
       <div className="overflow-x-auto overscroll-x-contain">
         <div className="min-w-[36rem]">
           <div className="mb-1.5 flex items-end gap-0">
-            <div className="sticky left-0 z-20 w-36 shrink-0 bg-white sm:w-40" aria-hidden />
+            <div className="sticky left-0 z-20 w-28 shrink-0 bg-white sm:w-32" aria-hidden />
             <div className="relative h-4 min-w-0 flex-1">
               {model.hours.map((h) => (
                 <span
@@ -166,21 +261,40 @@ export function AvailabilityTimeline({
           <ul className="space-y-2">
             {model.rows.map(({ participant, segments }) => {
               const meetingTime = localTimeByParticipant.get(participant.id);
+              const canEdit =
+                onEditParticipant &&
+                (!canEditParticipant || canEditParticipant(participant));
+              const nameBlock = (
+                <>
+                  <span className="block truncate text-sm font-medium text-ink">
+                    {participant.name}
+                  </span>
+                  <span className="block truncate text-[11px] text-ink-soft">
+                    {participant.cityLabel}
+                    {meetingTime ? (
+                      <span className="font-medium text-ocean-deep">
+                        {" "}
+                        · {meetingTime}
+                      </span>
+                    ) : null}
+                  </span>
+                </>
+              );
               return (
                 <li key={participant.id} className="flex items-center gap-0">
-                  <div className="sticky left-0 z-20 w-36 shrink-0 bg-white pr-2 sm:w-40">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {participant.name}
-                    </p>
-                    <p className="truncate text-[11px] text-ink-soft">
-                      {participant.cityLabel}
-                      {meetingTime ? (
-                        <span className="font-medium text-ocean-deep">
-                          {" "}
-                          · {meetingTime}
-                        </span>
-                      ) : null}
-                    </p>
+                  <div className="sticky left-0 z-20 w-28 shrink-0 bg-white pr-1 sm:w-32">
+                    {canEdit ? (
+                      <button
+                        type="button"
+                        onClick={() => onEditParticipant(participant)}
+                        className="w-full truncate text-left transition hover:text-ocean-deep"
+                        aria-label={`Edit ${participant.name}`}
+                      >
+                        {nameBlock}
+                      </button>
+                    ) : (
+                      <div className="w-full truncate text-left">{nameBlock}</div>
+                    )}
                   </div>
                   <div className="relative h-7 min-w-0 flex-1 overflow-hidden rounded-md bg-[#eef4f7]">
                     {segments.map((seg, i) => (
@@ -210,7 +324,7 @@ export function AvailabilityTimeline({
 
           {model.highlight ? (
             <div className="mt-1.5 flex gap-0">
-              <div className="sticky left-0 z-20 w-36 shrink-0 bg-white sm:w-40" aria-hidden />
+              <div className="sticky left-0 z-20 w-28 shrink-0 bg-white sm:w-32" aria-hidden />
               <div className="relative h-5 min-w-0 flex-1">
                 <div
                   className="absolute top-0 -translate-x-1/2 whitespace-nowrap text-[11px] font-medium text-ocean-deep"
@@ -230,7 +344,11 @@ export function AvailabilityTimeline({
         </div>
       </div>
 
-      <AvailabilitySummaryList participants={participants} />
+      <AvailabilitySummaryList
+        participants={participants}
+        onEditParticipant={onEditParticipant}
+        canEditParticipant={canEditParticipant}
+      />
 
       {activeSlot && onSelectSlot ? (
         <Button className="w-full" onClick={() => onSelectSlot(activeSlot)}>
@@ -248,6 +366,9 @@ export function AvailabilityTimelineSheet({
   slots,
   initialSlotId,
   onSelectSlot,
+  canEditParticipant,
+  onSaveParticipant,
+  onRemoveParticipant,
 }: {
   open: boolean;
   onClose: () => void;
@@ -255,15 +376,31 @@ export function AvailabilityTimelineSheet({
   slots: MeetingSlot[];
   initialSlotId?: string | null;
   onSelectSlot?: (slot: MeetingSlot) => void;
+  canEditParticipant?: (participant: Participant) => boolean;
+  onSaveParticipant?: (
+    participant: Participant,
+    draft: ParticipantDraft
+  ) => void;
+  onRemoveParticipant?: (participant: Participant) => void;
 }) {
   const [activeSlotId, setActiveSlotId] = useState<string | null>(
     initialSlotId ?? slots[0]?.id ?? null
   );
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  const editingParticipant =
+    editingId == null
+      ? null
+      : (participants.find((p) => p.id === editingId) ?? null);
 
   useEffect(() => {
     if (!open) return;
     setActiveSlotId(initialSlotId ?? slots[0]?.id ?? null);
   }, [open, initialSlotId, slots]);
+
+  useEffect(() => {
+    if (!open) setEditingId(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -276,6 +413,8 @@ export function AvailabilityTimelineSheet({
 
   if (!open) return null;
 
+  const showEdit = Boolean(editingParticipant && onSaveParticipant);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center overflow-hidden bg-ink/40 pt-1.5 sm:items-center sm:p-6">
       <button
@@ -284,31 +423,95 @@ export function AvailabilityTimelineSheet({
         aria-label="Close"
         onClick={onClose}
       />
-      <div className="relative z-10 max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:max-h-[85vh] sm:rounded-2xl sm:p-6">
-        <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
-          <h2 className="font-display text-2xl text-ink">See everyone&apos;s schedule</h2>
-          <button
-            type="button"
-            className="text-ink-soft hover:text-ink"
-            onClick={onClose}
-          >
-            ✕
-          </button>
-        </div>
-        <AvailabilityTimeline
-          participants={participants}
-          slots={slots}
-          activeSlotId={activeSlotId}
-          onActiveSlotChange={setActiveSlotId}
-          onSelectSlot={
-            onSelectSlot
-              ? (slot) => {
-                  onSelectSlot(slot);
-                  onClose();
-                }
-              : undefined
-          }
-        />
+      <div
+        className={`relative z-10 max-h-[88vh] w-full overflow-y-auto rounded-t-2xl bg-white p-4 shadow-xl sm:max-h-[85vh] sm:rounded-2xl sm:p-6 ${
+          showEdit ? "max-w-lg" : "max-w-3xl"
+        }`}
+      >
+        {showEdit && editingParticipant ? (
+          <>
+            <div className="mb-4 flex shrink-0 items-start justify-between gap-3">
+              <div className="min-w-0">
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="mb-2 inline-flex items-center gap-1 text-sm text-ink-soft transition hover:text-ink"
+                >
+                  <BackIcon />
+                  <span>View and Edit Schedule</span>
+                </button>
+                <h2 className="font-display text-2xl text-ink">
+                  Update details
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="shrink-0 text-ink-soft hover:text-ink"
+                onClick={onClose}
+              >
+                ✕
+              </button>
+            </div>
+            <ParticipantForm
+              key={editingParticipant.id}
+              initial={participantToDraft(editingParticipant)}
+              submitLabel="Save"
+              onSubmit={(draft) => {
+                onSaveParticipant?.(editingParticipant, draft);
+                setEditingId(null);
+              }}
+              onCancel={() => setEditingId(null)}
+              allowRemove={
+                Boolean(onRemoveParticipant) && !editingParticipant.isCreator
+              }
+              onRemove={
+                onRemoveParticipant
+                  ? () => {
+                      onRemoveParticipant(editingParticipant);
+                      setEditingId(null);
+                    }
+                  : undefined
+              }
+            />
+          </>
+        ) : (
+          <>
+            <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+              <h2 className="font-display text-2xl text-ink">
+                View and Edit Schedule
+              </h2>
+              <button
+                type="button"
+                className="text-ink-soft hover:text-ink"
+                onClick={onClose}
+              >
+                ✕
+              </button>
+            </div>
+            <AvailabilityTimeline
+              participants={participants}
+              slots={slots}
+              activeSlotId={activeSlotId}
+              onActiveSlotChange={setActiveSlotId}
+              onEditParticipant={
+                onSaveParticipant ? (p) => setEditingId(p.id) : undefined
+              }
+              canEditParticipant={
+                onSaveParticipant
+                  ? (p) => !canEditParticipant || canEditParticipant(p)
+                  : undefined
+              }
+              onSelectSlot={
+                onSelectSlot
+                  ? (slot) => {
+                      onSelectSlot(slot);
+                      onClose();
+                    }
+                  : undefined
+              }
+            />
+          </>
+        )}
       </div>
     </div>
   );

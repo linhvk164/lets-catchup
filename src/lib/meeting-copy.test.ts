@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
-  formatAvailableCount,
   formatAvailableCountPrompt,
+  formatUnavailableClause,
   formatUnavailableSentence,
 } from "./meeting-copy";
 import type { MeetingSlot } from "./types";
@@ -19,49 +19,41 @@ const baseSlot = {
   "availableCount" | "totalCount" | "unavailableNames"
 >;
 
-describe("formatUnavailableSentence", () => {
+describe("formatUnavailableClause", () => {
   it("names one person", () => {
-    assert.equal(
-      formatUnavailableSentence(["Sarah"]),
-      "Sarah isn't available at this time."
-    );
+    assert.equal(formatUnavailableClause(["Sarah"]), "Sarah isn't available");
   });
 
   it("names two people", () => {
     assert.equal(
-      formatUnavailableSentence(["Sarah", "Alex"]),
-      "Sarah and Alex aren't available at this time."
+      formatUnavailableClause(["Sarah", "Alex"]),
+      "Sarah and Alex aren't available"
     );
   });
 
   it("lists three or more people", () => {
     assert.equal(
-      formatUnavailableSentence(["Sarah", "Alex", "Blake"]),
-      "Sarah, Alex, and Blake aren't available at this time."
+      formatUnavailableClause(["Sarah", "Alex", "Blake"]),
+      "Sarah, Alex, and Blake aren't available"
     );
   });
 
   it("returns null when nobody is missing", () => {
-    assert.equal(formatUnavailableSentence([]), null);
+    assert.equal(formatUnavailableClause([]), null);
   });
 });
 
-describe("formatAvailableCount", () => {
-  it("formats N of M", () => {
+describe("formatUnavailableSentence", () => {
+  it("adds at this time", () => {
     assert.equal(
-      formatAvailableCount({
-        ...baseSlot,
-        availableCount: 4,
-        totalCount: 5,
-        unavailableNames: ["Sarah"],
-      }),
-      "4 of 5 people available"
+      formatUnavailableSentence(["Sarah"]),
+      "Sarah isn't available at this time."
     );
   });
 });
 
 describe("formatAvailableCountPrompt", () => {
-  it("adds the adjust prompt", () => {
+  it("names who is missing and prompts to adjust", () => {
     assert.equal(
       formatAvailableCountPrompt({
         ...baseSlot,
@@ -69,7 +61,19 @@ describe("formatAvailableCountPrompt", () => {
         totalCount: 3,
         unavailableNames: ["Jenny"],
       }),
-      "2 of 3 people available. Try adjusting the time!"
+      "Jenny isn't available at this time. Try adjusting availabilities!"
+    );
+  });
+
+  it("returns null when everyone is free", () => {
+    assert.equal(
+      formatAvailableCountPrompt({
+        ...baseSlot,
+        availableCount: 3,
+        totalCount: 3,
+        unavailableNames: [],
+      }),
+      null
     );
   });
 });

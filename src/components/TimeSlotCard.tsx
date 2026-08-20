@@ -3,10 +3,7 @@
 import { DateTime } from "luxon";
 import { Button } from "@/components/ui";
 import { uniqueLocalTimesByCity } from "@/lib/local-times";
-import {
-  formatAvailableCountPrompt,
-  formatUnavailableSentence,
-} from "@/lib/meeting-copy";
+import { formatAvailableCountPrompt } from "@/lib/meeting-copy";
 import { isPerfectOverlap } from "@/lib/scheduler";
 import type { MeetingSlot } from "@/lib/types";
 
@@ -15,11 +12,16 @@ export function TimeSlotCard({
   onSelect,
   featured,
   selected = false,
+  focused = false,
+  cardRef,
 }: {
   slot: MeetingSlot;
   onSelect?: () => void;
   featured?: boolean;
   selected?: boolean;
+  /** Preview highlight from calendar (not a confirmed pick). */
+  focused?: boolean;
+  cardRef?: (node: HTMLElement | null) => void;
 }) {
   const first = slot.localTimes[0];
   const dateLabel = DateTime.fromISO(slot.startUtc, { zone: "utc" })
@@ -28,16 +30,21 @@ export function TimeSlotCard({
 
   const places = uniqueLocalTimesByCity(slot.localTimes);
   const perfect = isPerfectOverlap(slot);
-  const unavailableLine = formatUnavailableSentence(slot.unavailableNames ?? []);
+  const unavailablePrompt = perfect
+    ? null
+    : formatAvailableCountPrompt(slot);
 
   return (
     <div
+      ref={cardRef}
       className={`rounded-2xl border border-ink/10 bg-white p-5 shadow-[0_12px_32px_rgba(31,79,92,0.08)] ${
         selected
-          ? "ring-1 ring-ocean/50"
-          : featured
-            ? "ring-1 ring-ocean/30"
-            : ""
+          ? "ring-2 ring-ocean/50"
+          : focused
+            ? "ring-1 ring-ocean/35"
+            : featured
+              ? "ring-1 ring-ocean/30"
+              : ""
       }`}
     >
       <div>
@@ -51,11 +58,6 @@ export function TimeSlotCard({
               : "Also works"}
         </p>
         <h2 className="mt-1 font-display text-2xl text-ink">{dateLabel}</h2>
-        {!perfect ? (
-          <p className="mt-1 text-sm font-medium text-ink-soft">
-            {formatAvailableCountPrompt(slot)}
-          </p>
-        ) : null}
       </div>
 
       <ul className="mt-4 space-y-2 border-t border-ink/8 pt-4">
@@ -73,9 +75,9 @@ export function TimeSlotCard({
         ))}
       </ul>
 
-      {unavailableLine ? (
-        <p className="mt-3 text-sm leading-relaxed text-ink-soft">
-          {unavailableLine}
+      {unavailablePrompt ? (
+        <p className="mt-3 text-sm font-light leading-relaxed text-ink-soft">
+          {unavailablePrompt}
         </p>
       ) : null}
 
@@ -88,49 +90,6 @@ export function TimeSlotCard({
           {selected ? "Time selected" : "Select this time"}
         </Button>
       ) : null}
-    </div>
-  );
-}
-
-export function AllTimesSheet({
-  open,
-  slots,
-  onClose,
-  onSelect,
-}: {
-  open: boolean;
-  slots: MeetingSlot[];
-  onClose: () => void;
-  onSelect: (slot: MeetingSlot) => void;
-}) {
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-ink/40 pt-3 sm:items-center sm:p-6">
-      <div
-        className="absolute inset-0"
-        onClick={onClose}
-        aria-hidden
-      />
-      <div className="relative z-10 max-h-[calc(100dvh-0.75rem)] w-full max-w-3xl overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-h-[85vh] sm:rounded-2xl">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-2xl text-ink">More times that work</h2>
-          <button type="button" className="text-ink-soft hover:text-ink" onClick={onClose}>
-            ✕
-          </button>
-        </div>
-        <ul className="mt-5 grid gap-4 sm:grid-cols-2">
-          {slots.map((slot, i) => (
-            <li key={slot.id}>
-              <TimeSlotCard
-                slot={slot}
-                featured={i === 0}
-                onSelect={() => onSelect(slot)}
-              />
-            </li>
-          ))}
-        </ul>
-      </div>
     </div>
   );
 }

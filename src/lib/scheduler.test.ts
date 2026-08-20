@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import { DateTime } from "luxon";
 import {
   availabilityTier,
+  expandMeetingSlotsAcrossWeeks,
   findMeetingSlots,
   isPerfectOverlap,
 } from "./scheduler";
@@ -431,5 +432,42 @@ describe("findMeetingSlots ranked compromises", () => {
     assert.ok(slots.length > 0);
     assert.equal(isPerfectOverlap(slots[0]!), true);
     assert.equal(slots[0]!.availableCount, 2);
+  });
+
+  it("projects top recommendations onto later weeks when availability repeats", () => {
+    const people = [
+      participant({
+        id: "a",
+        name: "A",
+        timezone: "America/Toronto",
+        cityLabel: "Toronto",
+      }),
+      participant({
+        id: "b",
+        name: "B",
+        timezone: "America/Toronto",
+        cityLabel: "Toronto",
+      }),
+    ];
+    const invite = catchUp(people);
+    const base = findMeetingSlots(invite, {
+      now: NOW,
+      limit: 3,
+      minGapMinutes: 120,
+    });
+    assert.ok(base.length > 0);
+
+    const expanded = expandMeetingSlotsAcrossWeeks(invite, base, 4);
+    assert.ok(expanded.length > base.length);
+
+    const weekKeys = new Set(
+      expanded.map((slot) =>
+        DateTime.fromISO(slot.startUtc, { zone: "utc" })
+          .setZone("America/Toronto")
+          .startOf("week")
+          .toISODate()
+      )
+    );
+    assert.ok(weekKeys.size >= 2);
   });
 });
