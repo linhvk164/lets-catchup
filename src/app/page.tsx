@@ -151,6 +151,66 @@ export default function HomePage() {
       {/* Below the fold */}
       <div className="relative z-20 bg-paper">
         <div className="mx-auto w-full max-w-5xl space-y-20 px-5 py-16 sm:space-y-24 sm:px-8 sm:py-20 lg:space-y-28 lg:py-24">
+          {/* Built for time zones */}
+          <section aria-labelledby="timezones-heading">
+            <LandingReveal>
+              <h2
+                id="timezones-heading"
+                className="font-display text-3xl tracking-tight text-ink sm:text-4xl"
+              >
+                Find time with ease
+              </h2>
+              <p className="mt-3 max-w-xl text-base text-ink-soft sm:text-lg">
+                Built for time zones and busy schedules.
+              </p>
+            </LandingReveal>
+
+            <div className="mt-10 grid items-center gap-10 sm:mt-12 lg:grid-cols-2 lg:gap-12">
+              <LandingReveal>
+                <ul className="space-y-4">
+                  {TIMEZONE_POINTS.map((point) => (
+                    <li
+                      key={point}
+                      className="flex items-start gap-3 text-left text-base text-ink sm:text-lg"
+                    >
+                      <span
+                        className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ocean-deep text-paper"
+                        aria-hidden
+                      >
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 12 12"
+                          fill="none"
+                        >
+                          <path
+                            d="M2.2 6.2 4.8 8.8 9.8 3.2"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </span>
+                      <span>{point}</span>
+                    </li>
+                  ))}
+                </ul>
+              </LandingReveal>
+
+              <LandingReveal delayMs={120} className="flex justify-center lg:justify-end">
+                <Image
+                  src="/images/landing/text-boxes.svg"
+                  alt="Example availability notes across time zones"
+                  width={640}
+                  height={480}
+                  className="h-auto w-full max-w-md"
+                  unoptimized
+                />
+              </LandingReveal>
+            </div>
+          </section>
+
           {/* How it works */}
           <section aria-labelledby="how-it-works-heading">
             <LandingReveal>
@@ -204,68 +264,6 @@ export default function HomePage() {
             <BecauseItsAbout />
           </LandingReveal>
 
-          {/* Built for time zones */}
-          <section aria-labelledby="timezones-heading">
-            <LandingReveal>
-              <h2
-                id="timezones-heading"
-                className="font-display text-3xl tracking-tight text-ink sm:text-4xl"
-              >
-                Find time with ease
-              </h2>
-              <p className="mt-3 max-w-xl text-base text-ink-soft sm:text-lg">
-              Built for time zones and busy schedules.
-              </p>
-            </LandingReveal>
-
-            <div className="mt-10 grid items-center gap-10 sm:mt-12 lg:grid-cols-2 lg:gap-12">
-              <LandingReveal>
-                <ul className="space-y-4">
-                  {TIMEZONE_POINTS.map((point) => (
-                    <li
-                      key={point}
-                      className="flex items-start gap-3 text-left text-base text-ink sm:text-lg"
-                    >
-                      <span
-                        className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ocean-deep text-paper"
-                        aria-hidden
-                      >
-                        <svg
-                          width="12"
-                          height="12"
-                          viewBox="0 0 12 12"
-                          fill="none"
-                        >
-                          <path
-                            d="M2.2 6.2 4.8 8.8 9.8 3.2"
-                            stroke="currentColor"
-                            strokeWidth="1.8"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                      </span>
-                      <span>{point}</span>
-                    </li>
-                  ))}
-                </ul>
-              </LandingReveal>
-
-              <LandingReveal delayMs={120} className="flex justify-center lg:justify-end">
-                <Image
-                  src="/images/landing/text-boxes.svg"
-                  alt="Example availability notes across time zones"
-                  width={640}
-                  height={480}
-                  className="h-auto w-full max-w-md"
-                  unoptimized
-                />
-              </LandingReveal>
-            </div>
-          </section>
-
-          <LandingArticles />
-
           {/* FAQ */}
           <section aria-labelledby="faq-heading">
             <div className="grid gap-8 lg:grid-cols-2 lg:gap-12 lg:items-start">
@@ -302,6 +300,8 @@ export default function HomePage() {
               </div>
             </div>
           </section>
+
+          <LandingArticles />
 
           <LandingReveal className="flex flex-col items-center text-center">
             <Image
